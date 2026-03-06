@@ -102,6 +102,10 @@ src/Plat/
     Flow.hs               -- step, policy, guard_
     Events.hs             -- event, emit, on_, apply_
     Modules.hs            -- domain, expose, import_
+examples/
+  GoCleanArch.hs          -- Go order service (CleanArch + DDD + Http)
+  TsHexagonal.hs          -- TS notification service (Hexagonal)
+  RustCqrsEs.hs           -- Rust bank account (CQRS + Events + Flow)
 ```
 
 ## Type Safety
@@ -167,6 +171,7 @@ mise run build    # Build the library
 mise run test     # Run 114 tests
 mise run check    # Build + test
 mise run lint     # Build with -Werror
+mise run examples # Run all examples
 mise run repl     # GHCi with plat-hs
 mise run clean    # Clean build artifacts
 mise run watch    # Rebuild on file changes (requires entr)
@@ -177,6 +182,20 @@ mise run watch    # Rebuild on file changes (requires entr)
 - GHC >= 9.6 (recommended: 9.10+)
 - `OverloadedStrings` (only required user extension)
 - `DataKinds` (optional, for explicit `Decl 'Model` type annotations; included in GHC2024)
+
+## Examples
+
+| Example | Architecture | Extensions | Target |
+|---------|-------------|------------|--------|
+| `GoCleanArch` | Clean Architecture (4 layers) | CleanArch, DDD, Http | Go |
+| `TsHexagonal` | Hexagonal (domain/port/adapter) | Core only | TypeScript |
+| `RustCqrsEs` | CQRS + Event Sourcing | CQRS, Events, DDD, Flow | Rust |
+
+```
+cabal run example-go-clean-arch
+cabal run example-ts-hexagonal
+cabal run example-rust-cqrs-es
+```
 
 ## Specification
 

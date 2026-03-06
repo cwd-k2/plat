@@ -27,6 +27,14 @@ run = "cabal run plat-hs-test"
 description = "Build with -Werror"
 run = "cabal build --ghc-options=-Werror"
 
+[tasks.examples]
+description = "Run all examples"
+run = """
+echo '--- Go Clean Architecture ---' && cabal run example-go-clean-arch 2>/dev/null
+echo '--- TypeScript Hexagonal ---' && cabal run example-ts-hexagonal 2>/dev/null
+echo '--- Rust CQRS + Event Sourcing ---' && cabal run example-rust-cqrs-es 2>/dev/null
+"""
+
 [tasks.watch]
 description = "Rebuild on file changes"
 run = "find src test -name '*.hs' | entr -c cabal test"

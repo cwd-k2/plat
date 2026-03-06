@@ -36,6 +36,42 @@ library
     OverloadedStrings
   ghc-options: -Wall
 
+executable example-go-clean-arch
+  main-is:          GoCleanArch.hs
+  hs-source-dirs:   examples
+  build-depends:
+    , base    >= 4.18 && < 5
+    , plat-hs
+    , text    >= 2.0
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+  ghc-options: -Wall
+
+executable example-ts-hexagonal
+  main-is:          TsHexagonal.hs
+  hs-source-dirs:   examples
+  build-depends:
+    , base    >= 4.18 && < 5
+    , plat-hs
+    , text    >= 2.0
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+  ghc-options: -Wall
+
+executable example-rust-cqrs-es
+  main-is:          RustCqrsEs.hs
+  hs-source-dirs:   examples
+  build-depends:
+    , base    >= 4.18 && < 5
+    , plat-hs
+    , text    >= 2.0
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+  ghc-options: -Wall
+
 test-suite plat-hs-test
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
