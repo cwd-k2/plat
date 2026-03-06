@@ -60,6 +60,29 @@ mise タスクも利用可能 (`mise run build`, `mise run test` 等)。
 `Architecture -> Text` 関数を `src/Plat/Generate/` に追加。
 `archDecls` を走査し、`declKind` / `declBody` / `declMeta` を読んで出力を構築する。
 
+## Target Language Modules (Plat.Target.*)
+
+`Plat.Target.{Go,TypeScript,Rust}` はターゲット言語向けのコード生成。
+
+各モジュールが `skeleton`, `contract`, `verify` の3関数をエクスポートする。
+シグネチャは共通: `Config -> Architecture -> [(FilePath, Text)]`
+
+### 新しい Target 言語を追加するとき
+
+1. `src/Plat/Target/NewLang.hs` を作成
+2. `LangConfig` 型を定義 (型マッピング、レイヤー→ディレクトリ対応)
+3. `TypeExpr -> Text` の型マッピングを実装
+4. `skeleton`: Model → struct/interface, Boundary → interface/trait, Operation → class/fn, Adapter → impl
+5. `contract`: Boundary ごとにテストスケルトン生成
+6. `verify`: adapter implements boundary のコンパイル時検証コード生成
+7. `plat-hs.cabal` に追加
+
+### 注意点
+
+- `ext` 型はターゲット言語固有なのでパススルー (型マッピングをバイパス)
+- `isErrorType` で Error を特別扱い (Go: error 戻り値、TS: throw、Rust: Result)
+- レイヤー名 → パッケージ/ディレクトリ名のマッピングは Config で上書き可能
+
 ## Testing
 
 `test/Main.hs` に全テストがフラットに配置されている。

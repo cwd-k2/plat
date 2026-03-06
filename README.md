@@ -171,13 +171,49 @@ aggregate name ly body = model name ly $ do
 | `Plat.Ext.Events` | `event`, `emit`, `on_`, `apply_` | Event Sourcing |
 | `Plat.Ext.Modules` | `domain`, `expose`, `import_` | Module boundaries |
 
-## Output Formats
+## Output
+
+### Formats
 
 | Format | Function | Use case |
 |--------|----------|----------|
 | `.plat` | `render`, `renderFiles` | Plat ツールチェーンとの統合 |
 | Mermaid | `renderMermaid` | ダイアグラム (needs/implements/bind の関係) |
 | Markdown | `renderMarkdown` | ドキュメント生成 |
+
+### Target Language Generation
+
+`Plat.Target.*` は Architecture からターゲット言語のコードを生成する。3つの機能を持つ:
+
+| Function | What it generates |
+|----------|-------------------|
+| `skeleton` | 型定義・インターフェース・ユースケース構造体・アダプタスタブ |
+| `contract` | boundary ごとの契約テスト (adapter が op を満たすことを検証) |
+| `verify` | コンパイル時適合チェック (ビルドが通る = アーキテクチャ適合) |
+
+いずれも `Config -> Architecture -> [(FilePath, Text)]` を返す。
+
+```haskell
+import qualified Plat.Target.Go as Go
+
+let cfg = Go.defaultConfig "github.com/example/svc"
+let files = Go.skeleton cfg architecture
+-- [("domain/order.go", "package domain\n..."), ...]
+```
+
+各言語の型マッピング:
+
+| plat-hs | Go | TypeScript | Rust |
+|---------|-----|------------|------|
+| `string` | `string` | `string` | `String` |
+| `int` | `int` | `number` | `i64` |
+| `list T` | `[]T` | `T[]` | `Vec<T>` |
+| `option T` | `*T` | `T \| null` | `Option<T>` |
+| `mapType K V` | `map[K]V` | `Map<K, V>` | `HashMap<K, V>` |
+| `ref model` | `ModelName` | `ModelName` | `ModelName` |
+| `ext "X"` | `X` (passthrough) | `X` | `X` |
+
+`GoConfig.goTypeMap` / `goLayerPkg` 等でプロジェクト固有のマッピングを上書き可能。
 
 ## Type Expressions
 

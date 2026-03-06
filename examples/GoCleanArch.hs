@@ -11,9 +11,12 @@ import Plat.Generate.Mermaid (renderMermaid)
 import Plat.Ext.CleanArch
 import Plat.Ext.DDD
 
+import qualified Data.Text
 import qualified Data.Text.IO as TIO
 
 import qualified Plat.Target.Go as Go
+import Plat.Verify.Manifest (manifest, renderManifest)
+import Plat.Verify.DepRules (depPolicy, renderDepMatrix)
 import qualified Plat.Ext.Http as Http
 
 ----------------------------------------------------------------------
@@ -221,3 +224,13 @@ main = do
     putStrLn $ ">> " ++ fp
     TIO.putStrLn content
     ) (Go.verify goCfg architecture)
+
+  -- Dependency matrix
+  putStrLn "--- Dependency Matrix ---"
+  TIO.putStrLn $ renderDepMatrix (depPolicy architecture)
+
+  -- Manifest (first 30 lines)
+  putStrLn "--- Manifest (excerpt) ---"
+  let mText = renderManifest (manifest architecture)
+  mapM_ TIO.putStrLn (take 30 (Data.Text.lines mText))
+  putStrLn "..."

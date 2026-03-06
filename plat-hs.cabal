@@ -28,6 +28,8 @@ library
     Plat.Target.Go
     Plat.Target.TypeScript
     Plat.Target.Rust
+    Plat.Verify.Manifest
+    Plat.Verify.DepRules
   build-depends:
     , base       >= 4.18 && < 5
     , containers >= 0.6
