@@ -1,0 +1,14 @@
+{
+  "name": "notification-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/main.js",
+    "verify": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4"
+  }
+}
