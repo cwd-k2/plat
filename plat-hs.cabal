@@ -25,6 +25,9 @@ library
     Plat.Ext.Flow
     Plat.Ext.Events
     Plat.Ext.Modules
+    Plat.Target.Go
+    Plat.Target.TypeScript
+    Plat.Target.Rust
   build-depends:
     , base       >= 4.18 && < 5
     , containers >= 0.6

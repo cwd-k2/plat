@@ -13,6 +13,7 @@ import Plat.Ext.DDD
 
 import qualified Data.Text.IO as TIO
 
+import qualified Plat.Target.Go as Go
 import qualified Plat.Ext.Http as Http
 
 ----------------------------------------------------------------------
@@ -201,3 +202,22 @@ main = do
   -- Mermaid
   putStrLn "--- Mermaid ---"
   TIO.putStrLn $ renderMermaid architecture
+  putStrLn ""
+
+  -- Go skeleton
+  let goCfg = (Go.defaultConfig "github.com/example/order-service")
+        { Go.goLayerPkg = mempty  -- use layer names as-is
+        , Go.goTypeMap  = mempty
+        }
+  putStrLn "--- Go Skeleton ---"
+  mapM_ (\(fp, content) -> do
+    putStrLn $ ">> " ++ fp
+    TIO.putStrLn content
+    ) (Go.skeleton goCfg architecture)
+
+  -- Go verify
+  putStrLn "--- Go Verify ---"
+  mapM_ (\(fp, content) -> do
+    putStrLn $ ">> " ++ fp
+    TIO.putStrLn content
+    ) (Go.verify goCfg architecture)
