@@ -2,9 +2,39 @@
 
 Haskell eDSL for [Plat](https://github.com/user/plat) architecture design.
 
-Write your software architecture as Haskell values. Get compile-time reference safety, runtime validation, and `.plat` file generation.
+ソフトウェアアーキテクチャを Haskell の値として記述し、コンパイル時の参照安全性・実行時バリデーション・複数フォーマットへの出力を得る。
 
-## Quick Example
+## Idea
+
+アーキテクチャ記述言語には2つの矛盾する要求がある:
+
+1. **構造的制約** — model に `needs` を書けてはならない、adapter に `field` があってはならない
+2. **均質なデータ操作** — すべての宣言をリストで走査し、検証や生成に渡したい
+
+plat-hs はこれを **phantom-tagged newtype** (`Decl k`) と **消去関数** (`decl`) の2層で解決する。構築時は型レベルの制約が効き、操作時は均質な `Declaration` として扱える。
+
+## Mental Model
+
+アーキテクチャは5種類の宣言 (`DeclKind`) から成る:
+
+```
+Model       — データ構造の定義（field）
+Boundary    — ポート/インタフェース（op）
+Operation   — ユースケース（input, output, needs）
+Adapter     — 実装（implements, inject）
+Compose     — 配線（bind, entry）
+```
+
+これらはレイヤーに配置され、レイヤー間の依存関係が `check` で検証される。
+
+```
+Layer A ──depends──▶ Layer B
+
+Operation(A) ──needs──▶ Boundary(B)    ← A が B に依存を許可していれば OK
+Adapter(A) ──implements──▶ Boundary(B) ← 同上
+```
+
+## Quick Start
 
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
@@ -12,39 +42,39 @@ import Plat.Core
 import Plat.Check
 import Plat.Generate.Plat (render)
 
--- Layers
+-- Layers: 依存グラフを定義
 core        = layer "core"
 interface   = layer "interface"   `depends` [core]
 application = layer "application" `depends` [core, interface]
 infra       = layer "infra"       `depends` [core, application, interface]
 
--- Domain model
+-- Model: データ構造
 order :: Decl 'Model
 order = model "Order" core $ do
   field "id"     (customType "UUID")
   field "total"  decimal
   field "status" string
 
--- Port
+-- Boundary: ポート
 orderRepo :: Decl 'Boundary
 orderRepo = boundary "OrderRepository" interface $ do
-  op "save"    ["order" .: ref order] ["err" .: error_]
+  op "save"     ["order" .: ref order] ["err" .: error_]
   op "findById" ["id" .: customType "UUID"] ["order" .: ref order, "err" .: error_]
 
--- Use case
+-- Operation: ユースケース
 placeOrder :: Decl 'Operation
 placeOrder = operation "PlaceOrder" application $ do
   input  "order" (ref order)
   output "err"   error_
-  needs orderRepo    -- compile-time: only Decl 'Boundary accepted
+  needs orderRepo    -- compile-time: Decl 'Boundary のみ受理
 
--- Infrastructure
+-- Adapter: 外部実装
 pgRepo :: Decl 'Adapter
 pgRepo = adapter "PostgresOrderRepo" infra $ do
   implements orderRepo
   inject "db" (ext "*sql.DB")
 
--- Architecture
+-- Architecture: 全体を組み立て
 architecture :: Architecture
 architecture = arch "my-service" $ do
   useLayers [core, application, interface, infra]
@@ -56,140 +86,118 @@ architecture = arch "my-service" $ do
 
 main :: IO ()
 main = do
-  let result = check architecture
-  putStrLn $ show (length (violations result)) ++ " violations"
-  putStrLn $ render architecture
+  let r = check architecture
+  putStrLn $ show (length (violations r)) ++ " violations"
 ```
 
-## What plat-hs gives you
+## Two-Layer Type Design
 
-| Feature | Mechanism |
-|---------|-----------|
-| No typos in references | Haskell variable bindings |
-| No `needs model` or `bind adapter adapter` | `Decl k` phantom types |
-| No `field` inside `compose` | `DeclWriter k` phantom-parameterized monad |
-| Layer dependency violations | `check` / V001 |
-| Unresolved boundaries | `check` / W001 |
-| Undefined type references | `check` / W002 |
-| `.plat` file generation | `renderFiles` |
-| Mermaid diagrams | `renderMermaid` |
-| Markdown docs | `renderMarkdown` |
-| CRUD generation, pattern comparison | Plain Haskell functions |
+### Construction: `Decl k`
 
-## Project Structure
-
-```
-src/Plat/
-  Core.hs                 -- Public API re-export
-  Core/
-    Types.hs              -- AST: Decl k, Declaration, DeclItem, TypeExpr
-    Builder.hs            -- DeclWriter k, ArchBuilder monads
-    TypeExpr.hs           -- Type constructors, ref, (.:)
-  Check.hs                -- check, checkIO, checkOrFail, prettyCheck
-  Check/
-    Class.hs              -- PlatRule type class, SomeRule, Diagnostic
-    Rules.hs              -- Core rules: V001-V008, W001-W003
-  Generate/
-    Plat.hs               -- .plat renderer
-    Mermaid.hs            -- Mermaid diagram generator
-    Markdown.hs           -- Markdown document generator
-  Ext/
-    DDD.hs                -- value, aggregate, enum_, invariant
-    CQRS.hs               -- command, query
-    CleanArch.hs          -- entity, port, impl_ + preset layers
-    Http.hs               -- controller, route
-    DBC.hs                -- pre, post, assert_
-    Flow.hs               -- step, policy, guard_
-    Events.hs             -- event, emit, on_, apply_
-    Modules.hs            -- domain, expose, import_
-examples/
-  GoCleanArch.hs          -- Go order service (CleanArch + DDD + Http)
-  TsHexagonal.hs          -- TS notification service (Hexagonal)
-  RustCqrsEs.hs           -- Rust bank account (CQRS + Events + Flow)
-```
-
-## Type Safety
-
-`Decl k` is a phantom-tagged newtype over `Declaration`. The tag `k :: DeclKind` restricts which combinators are available:
+phantom 型パラメータ `k :: DeclKind` がコンビネータを制約する:
 
 ```haskell
 needs :: Decl 'Boundary -> DeclWriter 'Operation ()
--- needs order       -- compile error: Decl 'Model /= Decl 'Boundary
--- needs pgRepo      -- compile error: Decl 'Adapter /= Decl 'Boundary
-   needs orderRepo   -- OK
-
-bind :: Decl 'Boundary -> Decl 'Adapter -> DeclWriter 'Compose ()
--- bind pgRepo orderRepo  -- compile error: wrong order/types
+-- needs order       → compile error (Model ≠ Boundary)
+-- needs pgRepo      → compile error (Adapter ≠ Boundary)
 
 field :: Text -> TypeExpr -> DeclWriter 'Model ()
--- field inside a boundary -- compile error: DeclWriter 'Boundary /= DeclWriter 'Model
+-- field inside boundary → compile error (DeclWriter 'Boundary ≠ DeclWriter 'Model)
+
+bind :: Decl 'Boundary -> Decl 'Adapter -> DeclWriter 'Compose ()
+-- bind pgRepo orderRepo → compile error (引数の型が逆)
 ```
 
-For meta-programming, `decl :: Decl k -> Declaration` erases the phantom tag, and `declares :: [Declaration] -> ArchBuilder ()` accepts homogeneous lists.
+### Manipulation: `Declaration`
 
-## Validation Rules
+`decl :: Decl k -> Declaration` で phantom tag を消去すると、均質なリストとして扱える:
 
-| Code | Severity | Description |
-|------|----------|-------------|
-| V001 | Error | Layer dependency violation |
-| V002 | Error | Layer cycle detected |
-| V003 | Error | `needs` target is not a boundary |
-| V004 | Error | Boundary contains adapter-specific items |
-| V005 | Error | `bind` outside compose |
-| V006 | Error | Declaration name conflicts with reserved keyword |
-| V007 | Error | Adapter with `implements` doesn't cover boundary ops |
-| V008 | Error | `bind` left-hand is not boundary or right-hand is not adapter |
-| W001 | Warning | Boundary has no implementing adapter |
-| W002 | Warning | Undefined type reference (excludes `ext`, reserved types) |
-| W003 | Warning | `@path` file does not exist (IO check) |
+```haskell
+declares :: [Declaration] -> ArchBuilder ()  -- 異なる DeclKind を混在可能
+declares [decl order, decl orderRepo, decl placeOrder]
+```
 
-Rules are composable:
+検証 (`check`)・生成 (`render`) はすべて `Declaration` レベルで動作する。
+
+## Validation
+
+`check :: Architecture -> CheckResult` はレイヤー依存・型整合性・構造制約を検証する。
+
+| Code | What it catches |
+|------|-----------------|
+| V001 | レイヤー依存違反 (operation が許可されていないレイヤーの boundary を needs) |
+| V002 | レイヤー循環依存 (A→B→C→A) |
+| V003 | `needs` の対象が boundary でない |
+| V004 | boundary に adapter 固有の要素 (inject, implements) |
+| V005 | compose 外での `bind` |
+| V006 | 予約語との名前衝突 |
+| V007 | adapter が implements した boundary の op を充足していない |
+| V008 | `bind` の左辺が boundary でない、または右辺が adapter でない |
+| W001 | boundary に対応する adapter が存在しない |
+| W002 | 未定義の型参照 (ext, Error, registered types は免除) |
+| W003 | `@path` で指定されたファイルが存在しない (IO check) |
+
+ルールは合成可能:
 
 ```haskell
 checkWith (coreRules ++ dddRules ++ cqrsRules) architecture
 ```
 
-## Extensions
+## Extension Mechanism
 
-All extensions are thin wrappers: smart constructors + `meta` tags + optional rules.
+拡張は **core の DeclItem を変更しない**。smart constructor + `meta` タグの薄いラッパーとして実装される。
 
-| Module | Vocabulary |
-|--------|-----------|
-| `Plat.Ext.DDD` | `value`, `aggregate`, `enum_`, `invariant` |
-| `Plat.Ext.CQRS` | `command`, `query` |
-| `Plat.Ext.CleanArch` | `entity`, `port`, `impl_`, `wire`, preset layers |
-| `Plat.Ext.Http` | `controller`, `route` |
-| `Plat.Ext.DBC` | `pre`, `post`, `assert_` |
-| `Plat.Ext.Flow` | `step`, `policy`, `guard_` |
-| `Plat.Ext.Events` | `event`, `emit`, `on_`, `apply_` |
-| `Plat.Ext.Modules` | `domain`, `expose`, `import_` |
-
-## Tasks (mise)
-
-```
-mise run build    # Build the library
-mise run test     # Run 114 tests
-mise run check    # Build + test
-mise run lint     # Build with -Werror
-mise run examples # Run all examples
-mise run repl     # GHCi with plat-hs
-mise run clean    # Clean build artifacts
-mise run watch    # Rebuild on file changes (requires entr)
+```haskell
+-- Ext.DDD の aggregate は model + meta タグ
+aggregate :: Text -> LayerDef -> DeclWriter 'Model () -> Decl 'Model
+aggregate name ly body = model name ly $ do
+  meta "plat-ddd:kind" "aggregate"
+  body
 ```
 
-## Requirements
+この設計により:
+- core AST は閉じたまま (`DeclItem` に新コンストラクタを追加しない)
+- 拡張ごとの検証ルールは `PlatRule` instance + `SomeRule` で合成
+- meta をクエリするヘルパー (`lookupMeta`, `isAggregate` 等) で拡張固有のロジックを構築
 
-- GHC >= 9.6 (recommended: 9.10+)
-- `OverloadedStrings` (only required user extension)
-- `DataKinds` (optional, for explicit `Decl 'Model` type annotations; included in GHC2024)
+| Module | Vocabulary | Domain |
+|--------|-----------|--------|
+| `Plat.Ext.DDD` | `value`, `aggregate`, `enum_`, `invariant` | Domain-Driven Design |
+| `Plat.Ext.CQRS` | `command`, `query` | Command-Query Separation |
+| `Plat.Ext.CleanArch` | `entity`, `port`, `impl_`, `wire` + preset layers | Clean Architecture |
+| `Plat.Ext.Http` | `controller`, `route` | HTTP endpoints |
+| `Plat.Ext.DBC` | `pre`, `post`, `assert_` | Design by Contract |
+| `Plat.Ext.Flow` | `step`, `policy`, `guard_` | Workflow / Saga |
+| `Plat.Ext.Events` | `event`, `emit`, `on_`, `apply_` | Event Sourcing |
+| `Plat.Ext.Modules` | `domain`, `expose`, `import_` | Module boundaries |
+
+## Output Formats
+
+| Format | Function | Use case |
+|--------|----------|----------|
+| `.plat` | `render`, `renderFiles` | Plat ツールチェーンとの統合 |
+| Mermaid | `renderMermaid` | ダイアグラム (needs/implements/bind の関係) |
+| Markdown | `renderMarkdown` | ドキュメント生成 |
+
+## Type Expressions
+
+`ref` は他の宣言への型参照を作る。`ext` はターゲット言語固有の型 (W002 免除)。`customType` はプロジェクト定義の型 (`registerType` で登録)。
+
+```haskell
+field "id"     (customType "UUID")     -- registerType "UUID" が必要 (W002)
+field "total"  decimal                 -- ビルトイン
+field "items"  (list (ref orderItem))  -- 他の宣言への参照
+inject "db"    (ext "*sql.DB")         -- 外部型 (W002 免除)
+field "err"    error_                  -- 予約型 (W002 免除)
+```
 
 ## Examples
 
-| Example | Architecture | Extensions | Target |
-|---------|-------------|------------|--------|
-| `GoCleanArch` | Clean Architecture (4 layers) | CleanArch, DDD, Http | Go |
-| `TsHexagonal` | Hexagonal (domain/port/adapter) | Core only | TypeScript |
-| `RustCqrsEs` | CQRS + Event Sourcing | CQRS, Events, DDD, Flow | Rust |
+| Example | Architecture | Extensions |
+|---------|-------------|------------|
+| `GoCleanArch` | Clean Architecture (enterprise/application/interface/framework) | CleanArch, DDD, Http |
+| `TsHexagonal` | Hexagonal (domain/port/adapter) | Core only |
+| `RustCqrsEs` | CQRS + Event Sourcing | CQRS, Events, DDD, Flow |
 
 ```
 cabal run example-go-clean-arch
@@ -197,7 +205,23 @@ cabal run example-ts-hexagonal
 cabal run example-rust-cqrs-es
 ```
 
-## Specification
+## Development
 
-- [plat-hs-spec-v0.6.md](plat-hs-spec-v0.6.md) -- current
-- [plat-hs-spec-v0.5.md](plat-hs-spec-v0.5.md) -- previous
+```
+mise run build      # Build
+mise run test       # 114 tests
+mise run lint       # -Werror
+mise run examples   # Run all examples
+mise run repl       # GHCi
+mise run watch      # Rebuild on change (requires entr)
+```
+
+Requires GHC >= 9.6 (recommended 9.10+). `OverloadedStrings` のみ必須。
+
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — モジュール構成、AST 設計、モナド設計
+- [docs/validation-rules.md](docs/validation-rules.md) — 全ルールの詳細仕様
+- [docs/extensions.md](docs/extensions.md) — 拡張パターンと meta タグ一覧
+- [plat-hs-spec-v0.6.md](plat-hs-spec-v0.6.md) — 正式仕様 (current)
+- [plat-hs-spec-v0.5.md](plat-hs-spec-v0.5.md) — previous
