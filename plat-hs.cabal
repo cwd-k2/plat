@@ -1,0 +1,51 @@
+cabal-version: 3.0
+name:          plat-hs
+version:       0.6.0
+synopsis:      Haskell eDSL for Plat architecture design
+license:       MIT
+build-type:    Simple
+
+library
+  exposed-modules:
+    Plat.Core
+    Plat.Core.Types
+    Plat.Core.TypeExpr
+    Plat.Core.Builder
+    Plat.Check
+    Plat.Check.Class
+    Plat.Check.Rules
+    Plat.Generate.Plat
+    Plat.Generate.Mermaid
+    Plat.Generate.Markdown
+    Plat.Ext.DDD
+    Plat.Ext.CQRS
+    Plat.Ext.CleanArch
+    Plat.Ext.Http
+    Plat.Ext.DBC
+    Plat.Ext.Flow
+    Plat.Ext.Events
+    Plat.Ext.Modules
+  build-depends:
+    , base       >= 4.18 && < 5
+    , containers >= 0.6
+    , directory  >= 1.3
+    , text       >= 2.0
+  hs-source-dirs: src
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+  ghc-options: -Wall
+
+test-suite plat-hs-test
+  type:             exitcode-stdio-1.0
+  main-is:          Main.hs
+  hs-source-dirs:   test
+  build-depends:
+    , base       >= 4.18 && < 5
+    , plat-hs
+    , text       >= 2.0
+    , containers >= 0.6
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+  ghc-options: -Wall

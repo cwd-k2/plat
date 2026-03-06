@@ -1,0 +1,32 @@
+[tasks.build]
+description = "Build the library"
+run = "cabal build"
+
+[tasks.test]
+description = "Run test suite"
+run = "cabal test"
+
+[tasks.check]
+description = "Build and test"
+depends = ["build"]
+run = "cabal test"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "cabal clean"
+
+[tasks.repl]
+description = "Start GHCi with plat-hs loaded"
+run = "cabal repl"
+
+[tasks.render]
+description = "Run test suite and show .plat output"
+run = "cabal run plat-hs-test"
+
+[tasks.lint]
+description = "Build with -Werror"
+run = "cabal build --ghc-options=-Werror"
+
+[tasks.watch]
+description = "Rebuild on file changes"
+run = "find src test -name '*.hs' | entr -c cabal test"
