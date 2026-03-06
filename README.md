@@ -259,5 +259,6 @@ Requires GHC >= 9.6 (recommended 9.10+). `OverloadedStrings` のみ必須。
 - [docs/architecture.md](docs/architecture.md) — モジュール構成、AST 設計、モナド設計
 - [docs/validation-rules.md](docs/validation-rules.md) — 全ルールの詳細仕様
 - [docs/extensions.md](docs/extensions.md) — 拡張パターンと meta タグ一覧
+- [docs/roadmap.md](docs/roadmap.md) — 開発ロードマップと今後の方向性
 - [plat-hs-spec-v0.6.md](plat-hs-spec-v0.6.md) — 正式仕様 (current)
 - [plat-hs-spec-v0.5.md](plat-hs-spec-v0.5.md) — previous
