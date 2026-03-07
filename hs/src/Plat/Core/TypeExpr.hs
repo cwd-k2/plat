@@ -34,9 +34,13 @@ module Plat.Core.TypeExpr
 
     -- * Param helper
   , (.:)
+
+    -- * Rendering
+  , renderTypeExpr
   ) where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 
 import Plat.Core.Types
 
@@ -119,3 +123,21 @@ error_ = TRef "Error"
 name .: ty = Param name ty
 
 infixl 7 .:
+
+-- Rendering
+
+renderTypeExpr :: TypeExpr -> Text
+renderTypeExpr (TBuiltin b) = case b of
+  BString   -> "String"
+  BInt      -> "Int"
+  BFloat    -> "Float"
+  BDecimal  -> "Decimal"
+  BBool     -> "Bool"
+  BUnit     -> "Unit"
+  BBytes    -> "Bytes"
+  BDateTime -> "DateTime"
+  BAny      -> "Any"
+renderTypeExpr (TRef name) = name
+renderTypeExpr (TGeneric name args) =
+  name <> "<" <> T.intercalate ", " (map renderTypeExpr args) <> ">"
+renderTypeExpr (TNullable t) = renderTypeExpr t <> "?"

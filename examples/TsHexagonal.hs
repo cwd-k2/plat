@@ -8,7 +8,6 @@ import qualified Data.Text.IO as TIO
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Plat     (render)
 import Plat.Generate.Mermaid  (renderMermaid)
 import Plat.Generate.Markdown (renderMarkdown)
 import Plat.Ext.DDD           (enum_)
@@ -210,10 +209,6 @@ main = do
 
   let checkResult = check architecture
   TIO.putStrLn $ prettyCheck checkResult
-  putStrLn ""
-
-  putStrLn "--- .plat ---"
-  TIO.putStrLn $ render architecture
   putStrLn ""
 
   putStrLn "--- Mermaid ---"

@@ -11,7 +11,7 @@ plat の開発ロードマップ。完了済みのフェーズと今後の方向
 - 5種の DeclKind: Model, Boundary, Operation, Adapter, Compose
 - TypeExpr: ビルトイン型、ジェネリクス、nullable、ref、ext
 - 11 検証ルール (V001-V008, W001-W003) via PlatRule + SomeRule
-- 3 出力フォーマット: .plat, Mermaid, Markdown
+- 2 出力フォーマット: Mermaid, Markdown
 
 ### v0.6.0: Extensions
 

@@ -2,7 +2,6 @@ module Main where
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Plat (render, renderFiles)
 import Plat.Generate.Mermaid (renderMermaid)
 import Plat.Generate.Markdown (renderMarkdown)
 import Plat.Ext.DDD
@@ -221,7 +220,6 @@ main = do
   results <- sequence
     [ section "Core eDSL"          testCoreEdsl
     , section "Check"              testCheck
-    , section "Render .plat"       testRenderPlat
     , section "Render Mermaid"     testRenderMermaid
     , section "Render Markdown"    testRenderMarkdown
     , section "Layer violations"   testLayerViolations
@@ -300,31 +298,6 @@ testCheck = do
     [ ("no violations",  not (hasViolations r))
     , ("no warnings",    not (hasWarnings r))
     ]
-
-testRenderPlat :: TestResult
-testRenderPlat = do
-  let rendered = render coreArch
-  let files = renderFiles coreArch
-  runTests
-    [ ("render non-empty",          T.length rendered > 0)
-    , ("contains model Order",      "model Order" `T.isInfixOf` rendered)
-    , ("contains boundary",         "boundary OrderRepository" `T.isInfixOf` rendered)
-    , ("contains operation",        "operation PlaceOrder" `T.isInfixOf` rendered)
-    , ("contains adapter impl",     "implements OrderRepository" `T.isInfixOf` rendered)
-    , ("contains adapter no-impl",  "adapter OrderHttpHandler : infra {" `T.isInfixOf` rendered)
-    , ("contains compose",          "compose AppRoot" `T.isInfixOf` rendered)
-    , ("contains bind",             "bind OrderRepository -> PostgresOrderRepo" `T.isInfixOf` rendered)
-    , ("contains entry",            "entry OrderHttpHandler" `T.isInfixOf` rendered)
-    , ("contains layer deps",       "layer infra : core, application, interface" `T.isInfixOf` rendered)
-    , ("contains type alias",       "type Money = Decimal" `T.isInfixOf` rendered)
-    , ("contains custom type",      "type UUID" `T.isInfixOf` rendered)
-    , ("op single param no parens", "save: Order -> Error" `T.isInfixOf` rendered)
-    , ("op multi params parens",    "findById: UUID -> (Order, Error)" `T.isInfixOf` rendered)
-    , ("renderFiles produces files", length files > 0)
-    , ("has models dir",            any (\(fp,_) -> "models/" `isIn` fp) files)
-    , ("has boundaries dir",        any (\(fp,_) -> "boundaries/" `isIn` fp) files)
-    ]
-  where isIn needle haystack = needle `T.isInfixOf` T.pack haystack
 
 testRenderMermaid :: TestResult
 testRenderMermaid = do

@@ -7,7 +7,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Plat.Core.Types
-import Plat.Generate.Plat (renderTypeExpr)
+import Plat.Core.TypeExpr (renderTypeExpr)
 
 -- | Architecture から Markdown ドキュメントを生成
 renderMarkdown :: Architecture -> Text

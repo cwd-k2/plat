@@ -15,7 +15,6 @@ Plat.Check             -- check, checkWith, checkIO, prettyCheck
 Plat.Check.Class       -- PlatRule type class, SomeRule (GADT), Diagnostic
 Plat.Check.Rules       -- V001-V008, W001-W003 の実装
 
-Plat.Generate.Plat     -- .plat テキスト生成
 Plat.Generate.Mermaid  -- Mermaid flowchart 生成
 Plat.Generate.Markdown -- Markdown ドキュメント生成
 
@@ -94,4 +93,3 @@ CheckResult は Monoid なので `<>` で合成可能。
 ## Generator Design
 
 各 Generator は `Architecture -> Text` のシンプルな関数。
-`renderFiles` のみ `Architecture -> [(FilePath, Text)]` でファイル分割を行う。

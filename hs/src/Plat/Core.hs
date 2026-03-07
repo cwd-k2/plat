@@ -99,6 +99,7 @@ module Plat.Core
   , customType
   , error_
   , (.:)
+  , renderTypeExpr
   ) where
 
 import Plat.Core.Types

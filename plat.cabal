@@ -15,7 +15,6 @@ library
     Plat.Check
     Plat.Check.Class
     Plat.Check.Rules
-    Plat.Generate.Plat
     Plat.Generate.Mermaid
     Plat.Generate.Markdown
     Plat.Ext.DDD

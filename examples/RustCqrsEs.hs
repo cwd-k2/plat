@@ -8,8 +8,8 @@ import qualified Data.Text.IO as TIO
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Plat    (render)
-import Plat.Generate.Mermaid (renderMermaid)
+import Plat.Generate.Mermaid   (renderMermaid)
+import Plat.Generate.Markdown  (renderMarkdown)
 import Plat.Ext.DDD
 import Plat.Ext.CQRS
 import Plat.Ext.Events
@@ -289,9 +289,9 @@ main = do
   TIO.putStrLn $ prettyCheck checkResult
   putStrLn ""
 
-  -- .plat output
-  putStrLn "--- .plat ---"
-  TIO.putStrLn $ render architecture
+  -- Markdown
+  putStrLn "--- Markdown ---"
+  TIO.putStrLn $ renderMarkdown architecture
   putStrLn ""
 
   -- Mermaid
