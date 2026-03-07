@@ -25,6 +25,7 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 - Flow: step, policy, guard_
 - Events: event, emit, on_, apply + EVT-V001, EVT-W001, EVT-W002
 - Modules: domain, expose, import_ + MOD-V001, MOD-V002, MOD-W001
+- **MultiService**: system, include, serviceApi, serviceRequires + SVC-V001, SVC-V002, SVC-W001
 
 ### Architecture Algebra (v0.6.0)
 
@@ -68,9 +69,14 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 
 ### Rust ツール群
 
-- **plat-skeleton**: コードスカフォールド生成 (golden tests 付き)
-- **plat-contract**: boundary の ops からテストスケルトン生成 (golden tests 付き)
-- **plat-deprules**: レイヤー依存定義から linter 設定を導出 (golden tests 付き)
+- **plat-skeleton**: コードスカフォールド生成 (Go/TS/Rust 生成テスト付き)
+- **plat-contract**: boundary の ops からテストスケルトン生成 (Go/TS/Rust 生成テスト付き)
+- **plat-deprules**: レイヤー依存定義から linter 設定を導出 (matrix/depguard/eslint テスト付き)
+- **plat-repl**: manifest ベースの対話シェル (decls, show, deps, layers, stats 等)
+
+### Editor Integration
+
+- **VS Code extension** (`editors/vscode`): plat-verify LSP client, 自動 manifest 検出, ステータスバー表示
 
 ## Future Directions
 
@@ -78,5 +84,6 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 
 ### Architecture as Code の進化
 
-- REPL 統合
-- Multi-service (複数 Architecture 間の境界)
+- plat-repl の拡張 (check コマンド, diff コマンド, mermaid 出力)
+- Multi-service manifest 生成 (system-level manifest)
+- VS Code extension の publish (VSIX パッケージ化)

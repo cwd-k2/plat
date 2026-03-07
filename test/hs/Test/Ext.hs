@@ -7,6 +7,7 @@ module Test.Ext
   , testFlow
   , testEvents
   , testModules
+  , testMultiService
   ) where
 
 import Plat.Core
@@ -20,6 +21,7 @@ import Plat.Ext.DBC
 import Plat.Ext.Flow
 import Plat.Ext.Events
 import Plat.Ext.Modules
+import Plat.Ext.MultiService
 
 import qualified Data.Text.IO as T
 
@@ -420,4 +422,130 @@ testModules = do
               declare importMod
             r3 = checkWith (coreRules ++ modulesRules) modArch3
         in any (\d -> dCode d == "MOD-W001") (warnings r3))
+    ]
+
+----------------------------------------------------------------------
+-- MultiService extension tests
+----------------------------------------------------------------------
+
+testMultiService :: TestResult
+testMultiService = do
+  -- Define two separate services
+  let -- Order service: has a public API boundary (orderRepo) and an internal boundary
+      orderApiRepo = boundary "OrderRepository" interface $ do
+        serviceApi
+        op "save" ["order" .: ref order] ["err" .: error_]
+        op "findById" ["id" .: uuid] ["order" .: ref order, "err" .: error_]
+
+      internalNotifier = boundary "InternalNotifier" interface $ do
+        op "notify" ["msg" .: string] []
+
+      orderOp = operation "PlaceOrder" application $ do
+        input "customerId" uuid
+        output "err" error_
+        needs orderApiRepo
+
+      orderSvc = arch "order-service" $ do
+        useLayers [core, application, interface]
+        declare order
+        declare orderApiRepo
+        declare internalNotifier
+        declare orderOp
+
+      -- Payment service: depends on OrderRepository from order-service
+      paymentApiGw = boundary "PaymentGateway" interface $ do
+        serviceApi
+        op "charge" ["amount" .: decimal] ["err" .: error_]
+
+      processPayment = operation "ProcessPayment" application $ do
+        input "amount" decimal
+        output "err" error_
+        needs paymentApiGw
+        needs orderApiRepo  -- cross-service: depends on order service's boundary
+
+      paymentSvc = arch "payment-service" $ do
+        useLayers [core, application, interface]
+        declare paymentApiGw
+        declare processPayment
+
+  -- Compose into system
+  let Right sysArch = system "platform" $ do
+        include "order" orderSvc
+        include "payment" paymentSvc
+
+  -- Query tests
+  let apis = serviceApis sysArch
+      deps = serviceDeps sysArch
+      orderDecl = case filter (\d -> declName d == "Order") (archDecls sysArch) of
+                    (d:_) -> d; [] -> error "no Order decl"
+
+  -- Validation: all cross-service refs are to serviceApi boundaries → clean
+  let r1 = checkWith (coreRules ++ multiServiceRules) sysArch
+  T.putStrLn (prettyCheck r1)
+
+  -- SVC-V001: cross-service needs non-API boundary
+  let badOp = operation "BadOp" application $ do
+        input "x" string
+        needs internalNotifier  -- internalNotifier is NOT serviceApi
+      badPaymentSvc = arch "bad-payment" $ do
+        useLayers [core, application, interface]
+        declare badOp
+      Right badSys = system "bad-platform" $ do
+        include "order" orderSvc
+        include "bad-payment" badPaymentSvc
+      r2 = checkWith (coreRules ++ multiServiceRules) badSys
+
+  -- SVC-V002: circular service dependencies
+  let svcA_bnd = boundary "SvcABoundary" interface $ do
+        serviceApi
+        op "doA" [] []
+      svcB_bnd = boundary "SvcBBoundary" interface $ do
+        serviceApi
+        op "doB" [] []
+      svcA_op = operation "OpA" application $ do
+        needs svcB_bnd  -- A needs B
+      svcB_op = operation "OpB" application $ do
+        needs svcA_bnd  -- B needs A → cycle!
+      svcA = arch "svc-a" $ do
+        useLayers [core, application, interface]
+        declare svcA_bnd
+        declare svcA_op
+      svcB = arch "svc-b" $ do
+        useLayers [core, application, interface]
+        declare svcB_bnd
+        declare svcB_op
+      Right cycleSys = system "cycle-platform" $ do
+        include "svc-a" svcA
+        include "svc-b" svcB
+      r3 = checkWith (coreRules ++ multiServiceRules) cycleSys
+
+  runTests
+    [ ("system merges services",
+        length (archDecls sysArch) == 6)  -- order, orderApiRepo, internalNotifier, orderOp, paymentApiGw, processPayment
+    , ("origin tagged",
+        originService orderDecl == Just "order")
+    , ("serviceApis found",
+        length apis == 2)  -- OrderRepository, PaymentGateway
+    , ("service deps inferred",
+        ("payment", "order") `elem` deps)
+    , ("isServiceApi works",
+        let apiRepoDecl = case filter (\d -> declName d == "OrderRepository") (archDecls sysArch) of
+                            (d:_) -> d; [] -> error "no OrderRepository"
+        in isServiceApi apiRepoDecl)
+    , ("non-API not serviceApi",
+        let intDecl = case filter (\d -> declName d == "InternalNotifier") (archDecls sysArch) of
+                        (d:_) -> d; [] -> error "no InternalNotifier"
+        in not (isServiceApi intDecl))
+    , ("clean system has no SVC errors",
+        not (any (\d -> dCode d == "SVC-V001") (violations r1)))
+    , ("SVC-V001: cross-service non-API",
+        any (\d -> dCode d == "SVC-V001") (violations r2))
+    , ("SVC-V002: circular service deps",
+        any (\d -> dCode d == "SVC-V002") (violations r3))
+    , ("serviceRequires adds relation",
+        let Right reqSys = system "req-platform" $ do
+              include "order" orderSvc
+              include "payment" paymentSvc
+              serviceRequires "payment" "order" "OrderRepository"
+        in any (\r -> relKind r == "service-requires") (archRelations reqSys))
     ]

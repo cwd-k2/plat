@@ -29,6 +29,7 @@ library
     Plat.Ext.Flow
     Plat.Ext.Events
     Plat.Ext.Modules
+    Plat.Ext.MultiService
     Plat.Verify.Manifest
   build-depends:
     , aeson        >= 2.0

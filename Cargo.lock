@@ -409,6 +409,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "plat-repl"
+version = "0.1.0"
+dependencies = [
+ "plat-manifest",
+ "serde_json",
+]
+
+[[package]]
 name = "plat-skeleton"
 version = "0.1.0"
 dependencies = [

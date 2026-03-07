@@ -28,6 +28,7 @@ main = do
     , section "Ext.Flow"          testFlow
     , section "Ext.Events"        testEvents
     , section "Ext.Modules"       testModules
+    , section "Ext.MultiService"  testMultiService
     , section "Meta-programming"  testMetaProgramming
     , section "V009/W003"         testNewRules
     , section "Constraints"       testConstraints
