@@ -22,6 +22,11 @@
 - **命名規約**: Haskell 予約語との衝突回避（trailing underscore）を統一的に文書化
 - **H2 / H3 の主張を精緻化**: 型安全性の範囲を正確に記述
 - **`Op` / `Input`・`Output` 非対称性**: 設計根拠を文書化
+- **`ArchConstraint` 導入**: `constrain` でアーキテクチャレベルの制約を登録し、`check` で自動評価。述語コンビネータ (`require`, `forbid`, `forAll`, `holds`) を提供
+- **`Relation` 導入**: DeclItem 由来の暗黙的関係と `relate` で登録する明示的関係を統一グラフとして扱う。`transitive`, `reachable`, `isAcyclic` でグラフ走査
+- **Architecture 代数**: `merge`, `project`, `diff` でアーキテクチャの合成・射影・比較を実現
+- **V009 追加**: 同名宣言の重複検出 (`checkArch`)
+- **W003 拡張**: 多重 `implements` 警告を追加（W003 コードを共用、将来分離予定）
 
 ---
 
@@ -43,7 +48,10 @@
 14. [GHC 要件](#14-ghc-要件)
 15. [利用例 — Go クリーンアーキテクチャ](#15-利用例--go-クリーンアーキテクチャ)
 16. [利用例 — メタプログラミング](#16-利用例--メタプログラミング)
-17. [将来構想](#17-将来構想)
+17. [制約システム](#17-制約システム)
+18. [関係グラフ](#18-関係グラフ)
+19. [Architecture 代数](#19-architecture-代数)
+20. [将来構想](#20-将来構想)
 
 ---
 
@@ -135,10 +143,14 @@ plat-hs/
 │   ├── Core/
 │   │   ├── Types.hs           -- AST 定義 (Declaration, Decl k, DeclItem, ...)
 │   │   ├── Builder.hs         -- DeclWriter k / ArchBuilder
-│   │   └── TypeExpr.hs        -- 型式: ビルトイン + コンストラクタ
+│   │   ├── TypeExpr.hs        -- 型式: ビルトイン + コンストラクタ
+│   │   ├── Meta.hs            -- 拡張メタ DSL: ExtId, MetaTag, tagAs, annotate, refer, attr
+│   │   ├── Constraint.hs      -- 制約述語: require, forbid, forAll, holds
+│   │   ├── Relation.hs        -- 関係グラフ: relations, transitive, reachable, isAcyclic
+│   │   └── Algebra.hs         -- 代数操作: merge, project, diff
 │   ├── Check.hs               -- 検証エンジン（再エクスポート）
 │   ├── Check/
-│   │   ├── Rules.hs           -- Core 検証ルール (V001〜V008, W001〜W003)
+│   │   ├── Rules.hs           -- Core 検証ルール (V001〜V009, W001〜W003)
 │   │   └── Class.hs           -- PlatRule 型クラス（拡張ポイント）
 │   ├── Generate.hs            -- 生成エンジン（再エクスポート）
 │   ├── Generate/
@@ -162,12 +174,15 @@ plat-hs/
 ユーザーの .hs
     │  import Plat.Core
     ▼
-eDSL 式（Decl k + do 記法）
+eDSL 式（Decl k + do 記法 + constrain / relate）
     │
     ▼
-Architecture（AST: Declaration ベース）
+Architecture（AST: Declaration + ArchConstraint + Relation）
     │
-    ├──→ check / checkWith ──→ CheckResult
+    ├──→ check / checkWith ──→ CheckResult（ルール + 制約評価）
+    ├──→ relations         ──→ [Relation]（統一グラフ）
+    ├──→ merge / project   ──→ Architecture（合成・射影）
+    ├──→ diff              ──→ ArchDiff（構造差分）
     ├──→ renderFiles       ──→ [(FilePath, Text)]  (.plat)
     ├──→ renderMermaid     ──→ Text
     └──→ renderMarkdown    ──→ Text
@@ -234,6 +249,24 @@ data DeclKind
   | Compose
   deriving (Show, Eq, Ord)
 
+-- | アーキテクチャレベルの制約（§17 参照）
+data ArchConstraint = ArchConstraint
+  { acName  :: Text                      -- 制約名（C:{name} として報告）
+  , acDesc  :: Text                      -- 人間向け説明
+  , acCheck :: Architecture -> [Text]    -- 違反メッセージを返す検査関数
+  }
+-- 関数フィールドのため手動インスタンス（acName ベース）
+instance Show ArchConstraint where show ac = "ArchConstraint " ++ show (acName ac)
+instance Eq ArchConstraint where a == b = acName a == acName b
+
+-- | 宣言間の関係（§18 参照）
+data Relation = Relation
+  { relKind   :: Text                    -- "needs", "implements", "bind", "entry", "references"
+  , relSource :: Text                    -- 起点宣言名
+  , relTarget :: Text                    -- 終点宣言名
+  , relMeta   :: [(Text, Text)]          -- 補足情報
+  } deriving (Show, Eq, Ord)
+
 -- | アーキテクチャ全体
 data Architecture = Architecture
   { archName        :: Text
@@ -241,6 +274,8 @@ data Architecture = Architecture
   , archTypes       :: [TypeAlias]
   , archCustomTypes :: [Text]           -- registerType で登録された型名
   , archDecls       :: [Declaration]
+  , archConstraints :: [ArchConstraint] -- constrain で登録（§17 参照）
+  , archRelations   :: [Relation]       -- relate で登録した明示的関係（§18 参照）
   , archMeta        :: [(Text, Text)]
   } deriving (Show, Eq)
 
@@ -424,6 +459,8 @@ data ArchBuild = ArchBuild
   , abTypes       :: [TypeAlias]
   , abCustomTypes :: [Text]
   , abDecls       :: [Declaration]
+  , abConstraints :: [ArchConstraint]
+  , abRelations   :: [Relation]
   , abMeta        :: [(Text, Text)]
   }
 
@@ -449,6 +486,12 @@ declare :: Decl k -> ArchBuilder ()
 
 -- | 宣言の一括登録（メタプログラミング用: erased Declaration を受け付ける）
 declares :: [Declaration] -> ArchBuilder ()
+
+-- | 制約の登録（§17 参照）
+constrain :: Text -> Text -> (Architecture -> [Text]) -> ArchBuilder ()
+
+-- | 明示的関係の登録（§18 参照）
+relate :: Text -> Decl a -> Decl b -> ArchBuilder ()
 ```
 
 ### 6.4 スマートコンストラクタの実装モデル
@@ -832,7 +875,7 @@ error_ :: TypeExpr
 error_ = TRef "Error"
 ```
 
-`Error` は言語横断的なエラー概念を表す。Go の `error`, TypeScript の `Error`, Rust の `E` 等に対応する。具体的な型マッピングはターゲット言語プロファイル（§17.4）で将来定義される。
+`Error` は言語横断的なエラー概念を表す。Go の `error`, TypeScript の `Error`, Rust の `E` 等に対応する。具体的な型マッピングはターゲット言語プロファイル（§20.3）で将来定義される。
 
 ### 8.6 命名規約 — Haskell 予約語との衝突回避
 
@@ -891,9 +934,11 @@ op "save"
 | V006 パッケージキーワード衝突 | — | ✓ |
 | V007 adapter が boundary の op を未宣言 | — | ✓（implements ありのみ） |
 | V008 存在しない boundary への bind | ✓ (v0.6 で解消) | — |
+| V009 同名宣言の重複 | — | ✓（`checkArch`） |
 | W001 未解決の boundary | — | ✓ |
 | W002 未定義型名 | — | ✓（ext・予約型除外） |
 | W003 @path のファイル不在 | — | ✓（checkIO） |
+| W003 多重 implements | — | ✓ |
 
 **v0.6 での改善**: V003, V005, V008 は phantom type の導入によりコンパイル時に検出されるようになった。ランタイムルールとしても残すが、eDSL 経由の構築では到達不能となる。
 
@@ -930,7 +975,9 @@ hasViolations :: CheckResult -> Bool
 hasWarnings   :: CheckResult -> Bool
 ```
 
-**`check` と `checkIO` の関係**: `check` は純粋な検証（V001〜V008, W001〜W002）を実行する。`checkIO` は `check` の結果に加えて W003（ファイル存在確認）を IO で実行し、両者を結合して返す。
+**`check` と `checkIO` の関係**: `check` は純粋な検証（V001〜V009, W001〜W003）を実行する。`checkIO` は `check` の結果に加えて W003（ファイル存在確認）を IO で実行し、両者を結合して返す。
+
+**制約の自動評価**: `checkWith` は `coreRules` の適用に加えて、`archConstraints` に登録された全制約を評価する。違反は `C:{acName}` コードの Error として `CheckResult` に追加される。
 
 **`checkOrFail`**: `check` と `checkIO` の両方を実行し、violation がある場合に `exitFailure` する。
 
@@ -966,9 +1013,13 @@ coreRules :: [SomeRule]
 | V006 | Error | `KeywordCollisionRule` | 宣言名がパッケージ予約語と衝突しないか（`checkArch`） |
 | V007 | Error | `AdapterCoverageRule` | implements adapter が boundary の全 op を持つか |
 | V008 | Error | `BindTargetRule` | bind の左辺が boundary、右辺が adapter であるか |
+| V009 | Error | `DuplicateNameRule` | 同名の宣言が複数存在しないか（`checkArch`） |
 | W001 | Warning | `UnresolvedBoundaryRule` | 全 boundary に対応する adapter (implements) が存在するか |
 | W002 | Warning | `UndefinedTypeRule` | TypeExpr 内の TRef が model/TypeAlias/customType/予約型で解決できるか（ext 除外） |
 | W003 | Warning | `PathExistsRule` | @path のファイルが実際に存在するか（`checkIO` 専用） |
+| W003 | Warning | `MultipleImplementsRule` | adapter に複数の `implements` があるか |
+
+> **注**: W003 コードは `PathExistsRule` と `MultipleImplementsRule` で共用されている。将来的に分離予定。
 
 ```haskell
 coreRules :: [SomeRule]
@@ -981,9 +1032,11 @@ coreRules =
   , SomeRule KeywordCollisionRule
   , SomeRule AdapterCoverageRule
   , SomeRule BindTargetRule
+  , SomeRule DuplicateNameRule
   , SomeRule UnresolvedBoundaryRule
   , SomeRule UndefinedTypeRule
   , SomeRule PathExistsRule
+  , SomeRule MultipleImplementsRule
   ]
 ```
 
@@ -1857,23 +1910,305 @@ appRoot = compose "AppRoot" $ do
 
 ---
 
-## 17. 将来構想
+## 17. 制約システム
 
-### 17.1 Template Haskell .plat パーサー
+### 17.1 概要
+
+`ArchConstraint` はアーキテクチャレベルの不変条件を一級値として表現する。`constrain` で `ArchBuilder` 内に登録し、`check` / `checkWith` が自動評価する。
+
+```haskell
+data ArchConstraint = ArchConstraint
+  { acName  :: Text                      -- 制約名
+  , acDesc  :: Text                      -- 人間向け説明
+  , acCheck :: Architecture -> [Text]    -- 違反時にメッセージ、準拠時に []
+  }
+```
+
+**設計判断**: `acCheck` は `[Diagnostic]` ではなく `[Text]` を返す。`Diagnostic` は `Plat.Check.Class` で定義されており、`Plat.Core.Types` から import すると循環依存が発生するためである。`checkWith` が `[Text]` を `Diagnostic` に変換し、`C:{acName}` コードの Error として報告する。
+
+### 17.2 `constrain` コンビネータ
+
+```haskell
+constrain :: Text -> Text -> (Architecture -> [Text]) -> ArchBuilder ()
+```
+
+```haskell
+architecture = arch "order-service" $ do
+  useLayers [core, application, interface, infra]
+
+  constrain "all-models-have-fields"
+    "Every model must have at least one field"
+    (require Model "model has no fields" (\d -> not (null [() | Field _ _ <- declBody d])))
+
+  constrain "no-god-boundary"
+    "No boundary should have more than 10 operations"
+    (forAll Boundary $ \d ->
+      let ops = [() | Op {} <- declBody d]
+      in if length ops > 10
+         then ["boundary " <> declName d <> " has " <> T.pack (show (length ops)) <> " ops (max 10)"]
+         else [])
+
+  declare order
+  ...
+```
+
+### 17.3 述語コンビネータ
+
+`Plat.Core.Constraint` が提供するコンビネータ:
+
+```haskell
+-- | 指定種の全宣言が述語を満たすこと
+require :: DeclKind -> Text -> (Declaration -> Bool) -> Architecture -> [Text]
+
+-- | 指定種のいかなる宣言も述語を満たさないこと
+forbid :: DeclKind -> Text -> (Declaration -> Bool) -> Architecture -> [Text]
+
+-- | 汎用: 各宣言に f を適用し違反メッセージを集約
+forAll :: DeclKind -> (Declaration -> [Text]) -> Architecture -> [Text]
+
+-- | アーキテクチャ全体の性質を検査
+holds :: Text -> (Architecture -> Bool) -> Architecture -> [Text]
+```
+
+関係: `forAll` が最も一般的で、`require` と `forbid` は `forAll` の特殊化である。`holds` は宣言レベルではなくアーキテクチャ全体の性質を検査する。
+
+```
+forAll (最も一般的)
+  ├── require (全宣言が述語を満たす)
+  ├── forbid  (いかなる宣言も述語を満たさない)
+  └── holds   (アーキテクチャ全体の性質)
+```
+
+### 17.4 制約評価の意味論
+
+`checkWith rules arch` は以下を実行する:
+
+1. `rules` の各ルールを全宣言に適用 → `ruleResults`
+2. `archConstraints arch` の各制約の `acCheck` を評価 → `constraintResults`
+3. `ruleResults <> constraintResults` を返す
+
+制約違反は `Diagnostic Error ("C:" <> acName c) msg (acName c) Nothing` として報告される。
+
+### 17.5 Manifest との関係
+
+`ArchConstraint` の `acCheck` は関数フィールドであるため直列化できない。JSON manifest には `acName` と `acDesc` のみを出力する。
+
+```json
+{
+  "constraints": [
+    { "name": "all-models-have-fields", "description": "Every model must have at least one field" }
+  ]
+}
+```
+
+---
+
+## 18. 関係グラフ
+
+### 18.1 概要
+
+`Relation` は宣言間の有向関係を表す。関係は2つの起源を持つ:
+
+1. **暗黙的関係**: `DeclItem` から自動抽出（needs, implements, bind, entry, field type refs）
+2. **明示的関係**: `relate` で `ArchBuilder` 内に登録
+
+`relations :: Architecture -> [Relation]` が両者を統一グラフとして返す。
+
+### 18.2 `Relation` 型
+
+```haskell
+data Relation = Relation
+  { relKind   :: Text              -- 関係の種類
+  , relSource :: Text              -- 起点宣言名
+  , relTarget :: Text              -- 終点宣言名
+  , relMeta   :: [(Text, Text)]    -- 補足メタデータ
+  } deriving (Show, Eq, Ord)
+```
+
+### 18.3 暗黙的関係の抽出
+
+| DeclItem | relKind | relSource | relTarget |
+|----------|---------|-----------|-----------|
+| `Needs name` | `"needs"` | 宣言名 | name |
+| `Implements name` | `"implements"` | 宣言名 | name |
+| `Bind bnd adp` | `"bind"` | bnd | adp |
+| `Entry name` | `"entry"` | 宣言名 | name |
+| `Field _ (TRef name)` | `"references"` | 宣言名 | name |
+| `Input _ (TRef name)` | `"references"` | 宣言名 | name |
+| `Output _ (TRef name)` | `"references"` | 宣言名 | name |
+| `Inject _ (TRef name)` | `"references"` | 宣言名 | name |
+
+`TRef` は `TGeneric` や `TNullable` の内部にもネストしうる。`typeRefs :: TypeExpr -> [Text]` で再帰的に全 `TRef` 名を抽出する。
+
+### 18.4 `relate` コンビネータ
+
+```haskell
+relate :: Text -> Decl a -> Decl b -> ArchBuilder ()
+```
+
+```haskell
+architecture = arch "order-service" $ do
+  ...
+  relate "depends-on" placeOrder cancelOrder
+  relate "triggers"   placeOrder eventPublisher
+```
+
+明示的関係の `relKind` はユーザーが自由に定義できる。暗黙的関係の種類名（`"needs"`, `"implements"` 等）と衝突しても意味的に問題はないが、区別のために異なる名前を推奨する。
+
+### 18.5 クエリ関数
+
+```haskell
+-- | 統一関係グラフ（暗黙 + 明示）
+relations :: Architecture -> [Relation]
+
+-- | 指定した関係種でフィルタ
+relationsOf :: Text -> Architecture -> [Relation]
+
+-- | 特化クエリ
+dependsOn     :: Architecture -> [(Text, Text)]   -- "needs" 関係
+implementedBy :: Architecture -> [(Text, Text)]   -- "implements" 関係（逆方向）
+boundTo       :: Architecture -> [(Text, Text)]   -- "bind" 関係
+```
+
+### 18.6 グラフ走査
+
+```haskell
+-- | 指定した関係種に沿った推移閉包
+transitive :: [Text] -> Text -> Architecture -> [Text]
+
+-- | 全関係種に沿った到達可能ノード
+reachable :: Text -> Architecture -> [Text]
+
+-- | 指定した関係種のグラフに循環がないか
+isAcyclic :: [Text] -> Architecture -> Bool
+```
+
+```haskell
+-- PlaceOrder から "needs" を辿って到達可能な全宣言
+transitive ["needs"] "PlaceOrder" architecture
+-- → ["OrderRepository", "PaymentGateway", "EventPublisher"]
+
+-- OrderRepository から全関係で到達可能
+reachable "OrderRepository" architecture
+-- → ["Order", "Error", ...]
+
+-- "needs" グラフに循環がないことを検査
+isAcyclic ["needs"] architecture
+-- → True
+```
+
+### 18.7 Manifest との関係
+
+明示的関係（`archRelations`）のみが JSON manifest に出力される。暗黙的関係は manifest の `declarations` から再構築可能である。
+
+```json
+{
+  "relations": [
+    { "kind": "depends-on", "source": "PlaceOrder", "target": "CancelOrder", "meta": {} }
+  ]
+}
+```
+
+---
+
+## 19. Architecture 代数
+
+### 19.1 概要
+
+`Plat.Core.Algebra` はアーキテクチャを代数的に操作する関数群を提供する。マイクロサービス分割の検討、レイヤー単位のレビュー、バージョン間の差分検出に使用する。
+
+### 19.2 合成
+
+```haskell
+-- | 2つの Architecture を合成（宣言は名前ベースで左優先重複排除）
+merge :: Text -> Architecture -> Architecture -> Architecture
+
+-- | 複数の Architecture を合成
+mergeAll :: Text -> [Architecture] -> Architecture
+```
+
+`merge` は以下のフィールドを結合する:
+- `archDecls`: 名前ベースで左優先 (`nubBy`)
+- `archLayers`: 名前ベースで左優先
+- `archTypes`: 名前ベースで左優先
+- `archCustomTypes`: 重複排除
+- `archConstraints`: 名前ベースで左優先
+- `archRelations`: 重複排除
+- `archMeta`: 連結
+
+```haskell
+-- マイクロサービス分割の検討: 各サービスの設計を合成して全体像を得る
+fullSystem = mergeAll "full-system" [orderService, userService, paymentService]
+```
+
+### 19.3 射影
+
+```haskell
+-- | 述語で Declaration をフィルタ（孤立 Relation も除去）
+project :: (Declaration -> Bool) -> Architecture -> Architecture
+
+-- | レイヤーで射影
+projectLayer :: Text -> Architecture -> Architecture
+
+-- | 宣言種で射影
+projectKind :: DeclKind -> Architecture -> Architecture
+```
+
+`project` は宣言をフィルタした後、残った宣言名に関連しない `archRelations` も除去する。
+
+```haskell
+-- domain レイヤーだけのビューを生成
+domainView = projectLayer "domain" architecture
+
+-- 全 boundary の一覧
+boundaries = projectKind Boundary architecture
+```
+
+### 19.4 差分
+
+```haskell
+data DeclChange
+  = Added    Declaration              -- 新規追加
+  | Removed  Declaration              -- 削除
+  | Modified Declaration Declaration  -- 変更（旧, 新）
+
+data ArchDiff = ArchDiff
+  { diffDecls     :: [DeclChange]
+  , diffLayers    :: ([LayerDef], [LayerDef])   -- (追加, 削除)
+  , diffRelations :: ([Relation], [Relation])   -- (追加, 削除)
+  }
+
+-- | 構造差分を計算
+diff :: Architecture -> Architecture -> ArchDiff
+```
+
+`diff` は宣言名をキーとして Added / Removed / Modified を判定する。Modified は名前が一致するが内容（`declBody`, `declMeta` 等）が異なる場合。
+
+```haskell
+-- v1 と v2 の差分を検出
+let changes = diff architectureV1 architectureV2
+-- Added / Removed / Modified を分類してレポート生成
+```
+
+---
+
+## 20. 将来構想
+
+### 20.1 Template Haskell .plat パーサー
 
 ```haskell
 $(loadPlat "design/models/order.plat")
 -- → order :: Decl 'Model
 ```
 
-### 17.2 QuickCheck プロパティテスト
+### 20.2 QuickCheck プロパティテスト
 
 ```haskell
 prop_noCircularDeps :: Architecture -> Property
 prop_layerInvariant :: Architecture -> Declaration -> Property
 ```
 
-### 17.3 ターゲット言語プロファイル
+### 20.3 ターゲット言語プロファイル
 
 `Plat.Lang.Go`, `Plat.Lang.TypeScript` 等で言語固有の型定数・暗黙パラメータ（context.Context 等）・sync チェックアダプターを提供する。
 
@@ -1886,11 +2221,11 @@ orderRepo = boundary "OrderRepository" interface $ do
     ["err" .: error_]
 ```
 
-### 17.4 Rust ツールチェーンとの統合
+### 20.4 Rust ツールチェーンとの統合
 
 plat-hs は `.plat` 生成源、Rust ツールチェーンは `plat sync` を担い、`.plat` をインターフェースとして疎結合に連携する。
 
-### 17.5 `alias` のリネーム検討
+### 20.5 `alias` のリネーム検討
 
 §7.2 の `alias :: TypeAlias -> TypeExpr` は、`TypeAlias` 型自体が "alias" であることから名前の重複感がある。`useAlias`, `typeRef`, `aliasRef` 等の候補を将来検討する。
 
