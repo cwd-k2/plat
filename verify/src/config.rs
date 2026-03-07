@@ -46,7 +46,8 @@ impl Language {
 
     pub fn default_field_case(self) -> Case {
         match self {
-            Self::Go | Self::TypeScript => Case::Camel,
+            Self::Go => Case::Pascal,
+            Self::TypeScript => Case::Camel,
             Self::Rust => Case::Snake,
         }
     }

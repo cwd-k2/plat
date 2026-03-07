@@ -101,7 +101,18 @@ fn extract_type_declarations(
                         implements: Vec::new(),
                     });
                 }
-                _ => {}
+                _ => {
+                    // Simple named type: `type Foo string`, `type Bar int`
+                    // Treat as a fieldless struct (for model existence checks)
+                    types.push(TypeDef {
+                        name,
+                        kind: TypeDefKind::Struct,
+                        file: file.to_path_buf(),
+                        fields: Vec::new(),
+                        methods: Vec::new(),
+                        implements: Vec::new(),
+                    });
+                }
             }
         }
     }
@@ -134,7 +145,7 @@ fn extract_interface_methods(node: tree_sitter::Node, source: &[u8]) -> Vec<Meth
     let mut methods = Vec::new();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == "method_spec" {
+        if child.kind() == "method_elem" || child.kind() == "method_spec" {
             if let Some(method) = parse_method_spec(child, source) {
                 methods.push(method);
             }
@@ -270,4 +281,228 @@ fn find_child_by_kind<'a>(node: tree_sitter::Node<'a>, kind: &str) -> Option<tre
 
 fn node_text<'a>(node: tree_sitter::Node, source: &'a [u8]) -> &'a str {
     node.utf8_text(source).unwrap_or("")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    use super::*;
+
+    /// Create a temporary directory with a unique name and write a single Go file into it.
+    /// Returns the directory path.
+    fn setup_go_file(name: &str, content: &str) -> PathBuf {
+        let dir = std::env::temp_dir()
+            .join("plat_verify_test_go")
+            .join(name);
+        if dir.exists() {
+            fs::remove_dir_all(&dir).unwrap();
+        }
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("source.go"), content).unwrap();
+        dir
+    }
+
+    fn empty_layer_dirs() -> HashMap<String, String> {
+        HashMap::new()
+    }
+
+    #[test]
+    fn test_struct_extraction() {
+        let src = r#"
+package domain
+
+type Order struct {
+    ID     string
+    Total  float64
+    Status OrderStatus
+}
+"#;
+        let dir = setup_go_file("struct_extraction", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1, "expected 1 file");
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1, "expected 1 type");
+
+        let order = &types[0];
+        assert_eq!(order.name, "Order");
+        assert_eq!(order.kind, TypeDefKind::Struct);
+        assert_eq!(order.fields.len(), 3);
+        assert_eq!(order.fields[0], ("ID".to_string(), "string".to_string()));
+        assert_eq!(
+            order.fields[1],
+            ("Total".to_string(), "float64".to_string())
+        );
+        assert_eq!(
+            order.fields[2],
+            ("Status".to_string(), "OrderStatus".to_string())
+        );
+        assert!(order.methods.is_empty());
+    }
+
+    #[test]
+    fn test_interface_extraction() {
+        let src = r#"
+package port
+
+type OrderRepository interface {
+    Save(order Order) error
+    FindById(id string) (Order, error)
+}
+"#;
+        let dir = setup_go_file("interface_extraction", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1);
+
+        let repo = &types[0];
+        assert_eq!(repo.name, "OrderRepository");
+        assert_eq!(repo.kind, TypeDefKind::Interface);
+        assert!(repo.fields.is_empty());
+        assert_eq!(repo.methods.len(), 2);
+
+        let save = &repo.methods[0];
+        assert_eq!(save.name, "Save");
+        assert_eq!(save.params.len(), 1);
+        assert_eq!(
+            save.params[0],
+            ("order".to_string(), "Order".to_string())
+        );
+        assert_eq!(save.returns, vec!["error".to_string()]);
+
+        let find = &repo.methods[1];
+        assert_eq!(find.name, "FindById");
+        assert_eq!(find.params.len(), 1);
+        assert_eq!(find.params[0], ("id".to_string(), "string".to_string()));
+        assert_eq!(
+            find.returns,
+            vec!["Order".to_string(), "error".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_method_receiver() {
+        let src = r#"
+package infra
+
+type PostgresOrderRepo struct {
+    db *sql.DB
+}
+
+func (r *PostgresOrderRepo) Save(order Order) error {
+    return nil
+}
+
+func (r *PostgresOrderRepo) FindById(id string) (Order, error) {
+    return Order{}, nil
+}
+"#;
+        let dir = setup_go_file("method_receiver", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1);
+
+        let repo = &types[0];
+        assert_eq!(repo.name, "PostgresOrderRepo");
+        assert_eq!(repo.kind, TypeDefKind::Struct);
+
+        // The struct has one field: db *sql.DB
+        assert_eq!(repo.fields.len(), 1);
+        assert_eq!(repo.fields[0].0, "db");
+
+        // Two methods attached via receiver
+        assert_eq!(repo.methods.len(), 2);
+
+        let save = &repo.methods[0];
+        assert_eq!(save.name, "Save");
+        assert_eq!(save.params.len(), 1);
+        assert_eq!(
+            save.params[0],
+            ("order".to_string(), "Order".to_string())
+        );
+        assert_eq!(save.returns, vec!["error".to_string()]);
+
+        let find = &repo.methods[1];
+        assert_eq!(find.name, "FindById");
+        assert_eq!(find.params.len(), 1);
+        assert_eq!(find.params[0], ("id".to_string(), "string".to_string()));
+        assert_eq!(
+            find.returns,
+            vec!["Order".to_string(), "error".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_empty_interface() {
+        let src = r#"
+package domain
+
+type Any interface {}
+"#;
+        let dir = setup_go_file("empty_interface", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1);
+
+        let any = &types[0];
+        assert_eq!(any.name, "Any");
+        assert_eq!(any.kind, TypeDefKind::Interface);
+        assert!(any.methods.is_empty());
+        assert!(any.fields.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_types_in_one_file() {
+        let src = r#"
+package domain
+
+type User struct {
+    Name  string
+    Email string
+}
+
+type UserRepository interface {
+    Create(user User) error
+    Delete(id string) error
+}
+"#;
+        let dir = setup_go_file("multiple_types", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 2, "expected both struct and interface");
+
+        // Find each type by name (order is not strictly guaranteed, but in
+        // practice tree-sitter walks top-down)
+        let user = types.iter().find(|t| t.name == "User").expect("User not found");
+        let repo = types
+            .iter()
+            .find(|t| t.name == "UserRepository")
+            .expect("UserRepository not found");
+
+        assert_eq!(user.kind, TypeDefKind::Struct);
+        assert_eq!(user.fields.len(), 2);
+        assert_eq!(user.fields[0], ("Name".to_string(), "string".to_string()));
+        assert_eq!(
+            user.fields[1],
+            ("Email".to_string(), "string".to_string())
+        );
+        assert!(user.methods.is_empty());
+
+        assert_eq!(repo.kind, TypeDefKind::Interface);
+        assert!(repo.fields.is_empty());
+        assert_eq!(repo.methods.len(), 2);
+        assert_eq!(repo.methods[0].name, "Create");
+        assert_eq!(repo.methods[1].name, "Delete");
+    }
 }

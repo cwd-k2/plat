@@ -1,4 +1,6 @@
 pub mod go;
+pub mod rust;
+pub mod typescript;
 
 use std::path::{Path, PathBuf};
 
@@ -44,14 +46,8 @@ pub struct FileFacts {
 pub fn extract_all(config: &Config) -> Result<Vec<FileFacts>, Box<dyn std::error::Error>> {
     match config.source.language {
         Language::Go => go::extract(&config.source.root, &config.source.layer_dirs),
-        Language::TypeScript => {
-            eprintln!("warning: TypeScript extraction not yet implemented");
-            Ok(Vec::new())
-        }
-        Language::Rust => {
-            eprintln!("warning: Rust extraction not yet implemented");
-            Ok(Vec::new())
-        }
+        Language::TypeScript => typescript::extract(&config.source.root, &config.source.layer_dirs),
+        Language::Rust => rust::extract(&config.source.root, &config.source.layer_dirs),
     }
 }
 

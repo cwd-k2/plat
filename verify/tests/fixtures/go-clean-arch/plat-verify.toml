@@ -1,0 +1,18 @@
+[source]
+language = "go"
+root = "./src"
+
+[source.layer_dirs]
+enterprise = "domain"
+interface = "port"
+application = "usecase"
+framework = "infra"
+
+[types]
+UUID = "string"
+
+[checks]
+existence = true
+structure = true
+relation = true
+drift = false
