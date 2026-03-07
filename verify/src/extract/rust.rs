@@ -1,56 +1,33 @@
-use std::collections::HashMap;
 use std::path::Path;
 
 use tree_sitter::Parser;
-use walkdir::WalkDir;
 
-use super::{resolve_layer, FileFacts, MethodDef, TypeDef, TypeDefKind};
+use super::{MethodDef, TypeDef, TypeDefKind};
 
-/// Extract facts from Rust source files.
-pub fn extract(
-    root: &Path,
-    layer_dirs: &HashMap<String, String>,
-) -> Result<Vec<FileFacts>, Box<dyn std::error::Error>> {
+/// Create a Rust tree-sitter parser.
+pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
-    let language = tree_sitter_rust::LANGUAGE;
-    parser.set_language(&language.into())?;
-
-    let mut all_facts = Vec::new();
-
-    for entry in WalkDir::new(root)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
-        .filter(|e| !is_test_file(e.path(), root))
-    {
-        let path = entry.path().to_path_buf();
-        let source = std::fs::read_to_string(&path)?;
-        let tree = parser
-            .parse(&source, None)
-            .ok_or_else(|| format!("failed to parse {}", path.display()))?;
-
-        let mut types = Vec::new();
-        let root_node = tree.root_node();
-
-        extract_struct_items(root_node, source.as_bytes(), &path, &mut types);
-        extract_trait_items(root_node, source.as_bytes(), &path, &mut types);
-        extract_impl_items(root_node, source.as_bytes(), &mut types);
-
-        let layer = resolve_layer(&path, root, layer_dirs);
-        all_facts.push(FileFacts {
-            path,
-            layer,
-            types,
-        });
-    }
-
-    Ok(all_facts)
+    parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
+    Ok(parser)
 }
 
-fn is_test_file(path: &Path, root: &Path) -> bool {
-    // Skip files under a `tests/` directory (relative to source root)
+/// Check if a Rust file is under a `tests/` directory (relative to source root).
+pub fn is_test_file(path: &Path, root: &Path) -> bool {
     let rel = path.strip_prefix(root).unwrap_or(path);
     rel.components().any(|c| c.as_os_str() == "tests")
+}
+
+/// Parse a single Rust source file and extract type definitions.
+pub fn parse_file(parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef> {
+    let Some(tree) = parser.parse(source, None) else {
+        return Vec::new();
+    };
+    let mut types = Vec::new();
+    let root_node = tree.root_node();
+    extract_struct_items(root_node, source.as_bytes(), file, &mut types);
+    extract_trait_items(root_node, source.as_bytes(), file, &mut types);
+    extract_impl_items(root_node, source.as_bytes(), &mut types);
+    types
 }
 
 /// Extract `struct_item` declarations from top-level or within modules.
@@ -383,28 +360,13 @@ fn node_text<'a>(node: tree_sitter::Node, source: &'a [u8]) -> &'a str {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fs;
     use std::path::PathBuf;
 
     use super::*;
 
-    /// Create a temporary directory with a unique name and write a single Rust file into it.
-    /// Returns the directory path.
-    fn setup_rs_file(name: &str, content: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join("plat_verify_test_rs")
-            .join(name);
-        if dir.exists() {
-            fs::remove_dir_all(&dir).unwrap();
-        }
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("source.rs"), content).unwrap();
-        dir
-    }
-
-    fn empty_layer_dirs() -> HashMap<String, String> {
-        HashMap::new()
+    fn parse(src: &str) -> Vec<TypeDef> {
+        let mut parser = new_parser().unwrap();
+        parse_file(&mut parser, src, &PathBuf::from("test.rs"))
     }
 
     #[test]
@@ -416,11 +378,7 @@ pub struct Order {
     pub status: OrderStatus,
 }
 "#;
-        let dir = setup_rs_file("struct_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1, "expected 1 file");
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1, "expected 1 type");
 
         let order = &types[0];
@@ -445,11 +403,7 @@ pub trait OrderRepository {
     fn find_by_id(&self, id: String) -> Result<Order, Error>;
 }
 "#;
-        let dir = setup_rs_file("trait_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1);
 
         let repo = &types[0];
@@ -496,11 +450,7 @@ impl OrderRepository for PostgresOrderRepo {
     }
 }
 "#;
-        let dir = setup_rs_file("impl_trait_for_struct", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 2, "expected struct and trait");
 
         let repo = types
@@ -511,16 +461,13 @@ impl OrderRepository for PostgresOrderRepo {
         assert_eq!(repo.fields.len(), 1);
         assert_eq!(repo.fields[0], ("db".to_string(), "PgPool".to_string()));
 
-        // The impl block should record the implements relationship
         assert_eq!(repo.implements.len(), 1);
         assert_eq!(repo.implements[0], "OrderRepository");
 
-        // Methods from the impl block should be attached to the struct
         assert_eq!(repo.methods.len(), 2);
         assert_eq!(repo.methods[0].name, "save");
         assert_eq!(repo.methods[1].name, "find_by_id");
 
-        // The trait itself should still have its own method signatures
         let trait_def = types
             .iter()
             .find(|t| t.name == "OrderRepository")
@@ -548,11 +495,7 @@ impl User {
     }
 }
 "#;
-        let dir = setup_rs_file("inherent_impl", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1);
 
         let user = &types[0];
@@ -565,12 +508,10 @@ impl User {
             ("email".to_string(), "String".to_string())
         );
 
-        // Methods from inherent impl should be attached
         assert_eq!(user.methods.len(), 2);
         assert_eq!(user.methods[0].name, "new");
         assert_eq!(user.methods[1].name, "display_name");
 
-        // No implements for inherent impl
         assert!(user.implements.is_empty());
     }
 
@@ -592,13 +533,8 @@ mod tests {
     }
 }
 "#;
-        let dir = setup_rs_file("cfg_test_skip", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+        let types = parse(src);
 
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
-
-        // Only the real type should be extracted; test module contents are skipped
         assert_eq!(types.len(), 1, "expected only RealType, test types should be skipped");
         assert_eq!(types[0].name, "RealType");
         assert_eq!(types[0].kind, TypeDefKind::Struct);
@@ -626,11 +562,7 @@ pub trait AccountService {
     fn open(&self, owner: String) -> Result<Account, Error>;
 }
 "#;
-        let dir = setup_rs_file("multiple_types", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 4, "expected 2 structs and 2 traits");
 
         let user = types.iter().find(|t| t.name == "User").expect("User not found");

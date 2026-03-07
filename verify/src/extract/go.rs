@@ -1,55 +1,33 @@
-use std::collections::HashMap;
 use std::path::Path;
 
 use tree_sitter::Parser;
-use walkdir::WalkDir;
 
-use super::{resolve_layer, FileFacts, MethodDef, TypeDef, TypeDefKind};
+use super::{MethodDef, TypeDef, TypeDefKind};
 
-/// Extract facts from Go source files.
-pub fn extract(
-    root: &Path,
-    layer_dirs: &HashMap<String, String>,
-) -> Result<Vec<FileFacts>, Box<dyn std::error::Error>> {
+/// Create a Go tree-sitter parser.
+pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
-    let language = tree_sitter_go::LANGUAGE;
-    parser.set_language(&language.into())?;
-
-    let mut all_facts = Vec::new();
-
-    for entry in WalkDir::new(root)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "go"))
-        .filter(|e| !is_test_file(e.path()))
-    {
-        let path = entry.path().to_path_buf();
-        let source = std::fs::read_to_string(&path)?;
-        let tree = parser
-            .parse(&source, None)
-            .ok_or_else(|| format!("failed to parse {}", path.display()))?;
-
-        let mut types = Vec::new();
-        let root_node = tree.root_node();
-
-        extract_type_declarations(root_node, source.as_bytes(), &path, &mut types);
-        extract_method_receivers(root_node, source.as_bytes(), &mut types);
-
-        let layer = resolve_layer(&path, root, layer_dirs);
-        all_facts.push(FileFacts {
-            path,
-            layer,
-            types,
-        });
-    }
-
-    Ok(all_facts)
+    parser.set_language(&tree_sitter_go::LANGUAGE.into())?;
+    Ok(parser)
 }
 
-fn is_test_file(path: &Path) -> bool {
+/// Check if a Go file is a test file.
+pub fn is_test_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
         .map_or(false, |n| n.ends_with("_test.go"))
+}
+
+/// Parse a single Go source file and extract type definitions.
+pub fn parse_file(parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef> {
+    let Some(tree) = parser.parse(source, None) else {
+        return Vec::new();
+    };
+    let mut types = Vec::new();
+    let root_node = tree.root_node();
+    extract_type_declarations(root_node, source.as_bytes(), file, &mut types);
+    extract_method_receivers(root_node, source.as_bytes(), &mut types);
+    types
 }
 
 fn extract_type_declarations(
@@ -285,28 +263,13 @@ fn node_text<'a>(node: tree_sitter::Node, source: &'a [u8]) -> &'a str {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fs;
     use std::path::PathBuf;
 
     use super::*;
 
-    /// Create a temporary directory with a unique name and write a single Go file into it.
-    /// Returns the directory path.
-    fn setup_go_file(name: &str, content: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join("plat_verify_test_go")
-            .join(name);
-        if dir.exists() {
-            fs::remove_dir_all(&dir).unwrap();
-        }
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("source.go"), content).unwrap();
-        dir
-    }
-
-    fn empty_layer_dirs() -> HashMap<String, String> {
-        HashMap::new()
+    fn parse(src: &str) -> Vec<TypeDef> {
+        let mut parser = new_parser().unwrap();
+        parse_file(&mut parser, src, &PathBuf::from("test.go"))
     }
 
     #[test]
@@ -320,11 +283,7 @@ type Order struct {
     Status OrderStatus
 }
 "#;
-        let dir = setup_go_file("struct_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1, "expected 1 file");
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1, "expected 1 type");
 
         let order = &types[0];
@@ -353,11 +312,7 @@ type OrderRepository interface {
     FindById(id string) (Order, error)
 }
 "#;
-        let dir = setup_go_file("interface_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1);
 
         let repo = &types[0];
@@ -402,11 +357,7 @@ func (r *PostgresOrderRepo) FindById(id string) (Order, error) {
     return Order{}, nil
 }
 "#;
-        let dir = setup_go_file("method_receiver", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1);
 
         let repo = &types[0];
@@ -446,11 +397,7 @@ package domain
 
 type Any interface {}
 "#;
-        let dir = setup_go_file("empty_interface", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1);
 
         let any = &types[0];
@@ -475,15 +422,9 @@ type UserRepository interface {
     Delete(id string) error
 }
 "#;
-        let dir = setup_go_file("multiple_types", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 2, "expected both struct and interface");
 
-        // Find each type by name (order is not strictly guaranteed, but in
-        // practice tree-sitter walks top-down)
         let user = types.iter().find(|t| t.name == "User").expect("User not found");
         let repo = types
             .iter()

@@ -1,3 +1,4 @@
+mod cache;
 mod check;
 mod config;
 mod extract;
@@ -127,14 +128,18 @@ fn main() {
         config.checks.layer_deps = cli.checks.contains(&CheckCategory::LayerDeps);
     }
 
-    // Extract source facts
-    let facts = match extract::extract_all(&config) {
+    // Extract source facts (with file-level cache)
+    let cache_path = cache::cache_path_for(&config.source.root);
+    let mut cache = cache::ExtractCache::load(&cache_path);
+    let facts = match extract::extract_all(&config, Some(&mut cache)) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("error: extraction failed: {e}");
             process::exit(2);
         }
     };
+    cache.prune();
+    let _ = cache.save(&cache_path);
 
     // Run checks
     let mut findings = check::run_checks(&manifest, &facts, &config);

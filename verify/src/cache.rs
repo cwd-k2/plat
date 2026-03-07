@@ -1,0 +1,101 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+use serde::{Deserialize, Serialize};
+
+use crate::extract::TypeDef;
+
+/// Per-file cache entry keyed by mtime + size.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CacheEntry {
+    mtime_secs: u64,
+    size: u64,
+    types: Vec<TypeDef>,
+}
+
+/// File-level extraction cache backed by a JSON file.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExtractCache {
+    entries: HashMap<PathBuf, CacheEntry>,
+}
+
+impl ExtractCache {
+    /// Load cache from disk, or create empty if missing/corrupt.
+    pub fn load(cache_path: &Path) -> Self {
+        std::fs::read_to_string(cache_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| Self {
+                entries: HashMap::new(),
+            })
+    }
+
+    /// Save cache to disk.
+    pub fn save(&self, cache_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = cache_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let json = serde_json::to_string(self)?;
+        std::fs::write(cache_path, json)?;
+        Ok(())
+    }
+
+    /// Look up cached types for a file. Returns `Some` if cache is fresh.
+    pub fn get(&self, path: &Path, meta: &std::fs::Metadata) -> Option<Vec<TypeDef>> {
+        let entry = self.entries.get(path)?;
+        let (mtime, size) = file_stamp(meta);
+        if entry.mtime_secs == mtime && entry.size == size {
+            Some(entry.types.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Store extraction result for a file.
+    pub fn put(&mut self, path: PathBuf, meta: &std::fs::Metadata, types: Vec<TypeDef>) {
+        let (mtime, size) = file_stamp(meta);
+        self.entries.insert(
+            path,
+            CacheEntry {
+                mtime_secs: mtime,
+                size,
+                types,
+            },
+        );
+    }
+
+    /// Remove entries for files that no longer exist on disk.
+    pub fn prune(&mut self) {
+        self.entries.retain(|path, _| path.exists());
+    }
+}
+
+fn file_stamp(meta: &std::fs::Metadata) -> (u64, u64) {
+    let mtime = meta
+        .modified()
+        .unwrap_or(SystemTime::UNIX_EPOCH)
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let size = meta.len();
+    (mtime, size)
+}
+
+/// Compute the cache file path for a given source root.
+///
+/// Uses a simple hash of the canonical root path to produce a unique
+/// filename under the system temp directory.
+pub fn cache_path_for(root: &Path) -> PathBuf {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let mut hasher = DefaultHasher::new();
+    canonical.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    std::env::temp_dir()
+        .join("plat-verify-cache")
+        .join(format!("{:016x}.json", hash))
+}

@@ -1,54 +1,31 @@
-use std::collections::HashMap;
 use std::path::Path;
 
 use tree_sitter::Parser;
-use walkdir::WalkDir;
 
-use super::{resolve_layer, FileFacts, MethodDef, TypeDef, TypeDefKind};
+use super::{MethodDef, TypeDef, TypeDefKind};
 
-/// Extract facts from TypeScript source files.
-pub fn extract(
-    root: &Path,
-    layer_dirs: &HashMap<String, String>,
-) -> Result<Vec<FileFacts>, Box<dyn std::error::Error>> {
+/// Create a TypeScript tree-sitter parser.
+pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
-    let language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT;
-    parser.set_language(&language.into())?;
-
-    let mut all_facts = Vec::new();
-
-    for entry in WalkDir::new(root)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "ts"))
-        .filter(|e| !is_test_file(e.path()))
-    {
-        let path = entry.path().to_path_buf();
-        let source = std::fs::read_to_string(&path)?;
-        let tree = parser
-            .parse(&source, None)
-            .ok_or_else(|| format!("failed to parse {}", path.display()))?;
-
-        let mut types = Vec::new();
-        let root_node = tree.root_node();
-
-        extract_declarations(root_node, source.as_bytes(), &path, &mut types);
-
-        let layer = resolve_layer(&path, root, layer_dirs);
-        all_facts.push(FileFacts {
-            path,
-            layer,
-            types,
-        });
-    }
-
-    Ok(all_facts)
+    parser.set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())?;
+    Ok(parser)
 }
 
-fn is_test_file(path: &Path) -> bool {
+/// Check if a TypeScript file is a test file.
+pub fn is_test_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
         .map_or(false, |n| n.ends_with(".test.ts") || n.ends_with(".spec.ts"))
+}
+
+/// Parse a single TypeScript source file and extract type definitions.
+pub fn parse_file(parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef> {
+    let Some(tree) = parser.parse(source, None) else {
+        return Vec::new();
+    };
+    let mut types = Vec::new();
+    extract_declarations(tree.root_node(), source.as_bytes(), file, &mut types);
+    types
 }
 
 fn extract_declarations(
@@ -346,28 +323,13 @@ fn node_text<'a>(node: tree_sitter::Node, source: &'a [u8]) -> &'a str {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fs;
     use std::path::PathBuf;
 
     use super::*;
 
-    /// Create a temporary directory with a unique name and write a single TypeScript file into it.
-    /// Returns the directory path.
-    fn setup_ts_file(name: &str, content: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join("plat_verify_test_ts")
-            .join(name);
-        if dir.exists() {
-            fs::remove_dir_all(&dir).unwrap();
-        }
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("source.ts"), content).unwrap();
-        dir
-    }
-
-    fn empty_layer_dirs() -> HashMap<String, String> {
-        HashMap::new()
+    fn parse(src: &str) -> Vec<TypeDef> {
+        let mut parser = new_parser().unwrap();
+        parse_file(&mut parser, src, &PathBuf::from("test.ts"))
     }
 
     #[test]
@@ -381,11 +343,7 @@ class Order {
     cancel(reason: string): boolean { return true; }
 }
 "#;
-        let dir = setup_ts_file("class_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1, "expected 1 file");
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1, "expected 1 type");
 
         let order = &types[0];
@@ -410,11 +368,7 @@ interface OrderRepository {
     findById(id: string): Order;
 }
 "#;
-        let dir = setup_ts_file("interface_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
-
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        let types = parse(src);
         assert_eq!(types.len(), 1);
 
         let repo = &types[0];
@@ -447,11 +401,9 @@ type UserService = {
     greet(msg: string): string;
 };
 "#;
-        let dir = setup_ts_file("type_alias_extraction", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+        let types = parse(src);
 
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        
         assert_eq!(types.len(), 1);
 
         let svc = &types[0];
@@ -478,11 +430,9 @@ type UserService = {
 type Status = "active" | "inactive";
 type ID = string;
 "#;
-        let dir = setup_ts_file("type_alias_union_skipped", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+        let types = parse(src);
 
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        
         assert_eq!(types.len(), 0, "union and primitive type aliases should be skipped");
     }
 
@@ -497,11 +447,9 @@ class PostgresRepository implements Repository {
     save(item: Item): void {}
 }
 "#;
-        let dir = setup_ts_file("implements_clause", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+        let types = parse(src);
 
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        
         assert_eq!(types.len(), 2);
 
         let repo_iface = types.iter().find(|t| t.name == "Repository").expect("Repository not found");
@@ -530,11 +478,9 @@ export type OrderConfig = {
     retries: number;
 };
 "#;
-        let dir = setup_ts_file("export_wrapping", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+        let types = parse(src);
 
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        
         assert_eq!(types.len(), 3, "expected exported class, interface, and type alias");
 
         let svc = types.iter().find(|t| t.name == "OrderService").expect("OrderService not found");
@@ -574,11 +520,9 @@ class App {
     start(): void {}
 }
 "#;
-        let dir = setup_ts_file("multiple_types", src);
-        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+        let types = parse(src);
 
-        assert_eq!(facts.len(), 1);
-        let types = &facts[0].types;
+        
         assert_eq!(types.len(), 4, "expected Logger, ConsoleLogger, AppConfig, App");
 
         let logger = types.iter().find(|t| t.name == "Logger").expect("Logger not found");
