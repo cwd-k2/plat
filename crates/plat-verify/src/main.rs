@@ -2,10 +2,7 @@ mod cache;
 mod check;
 mod config;
 mod extract;
-mod manifest;
-mod naming;
 mod report;
-mod typemap;
 
 use std::path::PathBuf;
 use std::process;
@@ -14,6 +11,24 @@ use clap::Parser;
 
 use config::{Config, Language, Severity};
 use report::Format;
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum CliLanguage {
+    Go,
+    #[value(name = "typescript")]
+    TypeScript,
+    Rust,
+}
+
+impl From<CliLanguage> for Language {
+    fn from(l: CliLanguage) -> Self {
+        match l {
+            CliLanguage::Go => Language::Go,
+            CliLanguage::TypeScript => Language::TypeScript,
+            CliLanguage::Rust => Language::Rust,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "plat-verify", version, about = "Architecture conformance verification")]
@@ -31,7 +46,7 @@ struct Cli {
 
     /// Language (overrides config)
     #[arg(short, long)]
-    language: Option<Language>,
+    language: Option<CliLanguage>,
 
     /// Output format
     #[arg(short, long, default_value = "text")]
@@ -77,7 +92,7 @@ fn main() {
             process::exit(2);
         }
     };
-    let manifest: manifest::Manifest = match serde_json::from_str(&manifest_text) {
+    let manifest: plat_manifest::Manifest = match serde_json::from_str(&manifest_text) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("error: invalid manifest JSON: {e}");
@@ -95,10 +110,9 @@ fn main() {
             }
         }
     } else if cli.language.is_some() {
-        // No config file but language specified via CLI — use defaults
         Config {
             source: config::SourceConfig {
-                language: cli.language.unwrap(),
+                language: Language::from(cli.language.unwrap()),
                 root: cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
                 layer_dirs: Default::default(),
                 layer_match: Default::default(),
@@ -117,10 +131,9 @@ fn main() {
         config.source.root = root.clone();
     }
     if let Some(lang) = cli.language {
-        config.source.language = lang;
+        config.source.language = Language::from(lang);
     }
 
-    // --check overrides: if specified, only enable listed categories
     if !cli.checks.is_empty() {
         config.checks.existence = cli.checks.contains(&CheckCategory::Existence);
         config.checks.structure = cli.checks.contains(&CheckCategory::Structure);
@@ -144,8 +157,6 @@ fn main() {
 
     // Run checks
     let mut findings = check::run_checks(&manifest, &facts, &config);
-
-    // Filter by severity
     findings.retain(|f| f.severity >= cli.severity);
 
     // Report
@@ -171,7 +182,6 @@ fn main() {
         );
     }
 
-    // Exit code
     if summary.errors > 0 {
         process::exit(1);
     }

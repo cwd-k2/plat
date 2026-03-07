@@ -1,8 +1,8 @@
 use crate::check::Finding;
 use crate::config::{Config, Language, Severity};
 use crate::extract::{FileFacts, TypeDef, TypeDefKind};
-use crate::manifest::{DeclKind, Manifest};
-use crate::naming;
+use plat_manifest::{DeclKind, Manifest};
+use plat_manifest::naming;
 
 /// R0xx: Check relationship conformance (implements, bindings).
 pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<Finding> {

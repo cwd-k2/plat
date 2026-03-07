@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use crate::check::Finding;
 use crate::config::{Config, Severity};
 use crate::extract::{FileFacts, TypeDefKind};
-use crate::manifest::{DeclKind, Manifest};
-use crate::naming;
+use plat_manifest::{DeclKind, Manifest};
+use plat_manifest::naming;
 
 /// T0xx: Detect drift — source artifacts not described in the manifest.
 pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<Finding> {
@@ -83,7 +83,7 @@ mod tests {
     use super::*;
     use crate::config::*;
     use crate::extract::TypeDef;
-    use crate::manifest::*;
+    use plat_manifest::*;
     use std::collections::HashMap;
     use std::path::PathBuf;
 

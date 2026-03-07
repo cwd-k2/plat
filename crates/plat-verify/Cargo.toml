@@ -1,0 +1,33 @@
+[package]
+name = "plat-verify"
+version = "0.1.0"
+edition = "2021"
+description = "Architecture conformance verification via tree-sitter"
+
+[[bin]]
+name = "plat-verify"
+path = "src/main.rs"
+
+[[test]]
+name = "integration_go"
+path = "tests/integration_go.rs"
+
+[[test]]
+name = "integration_rust"
+path = "tests/integration_rust.rs"
+
+[[test]]
+name = "integration_typescript"
+path = "tests/integration_typescript.rs"
+
+[dependencies]
+plat-manifest = { path = "../plat-manifest" }
+tree-sitter = "0.24"
+tree-sitter-go = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-rust = "0.23"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"

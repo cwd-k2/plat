@@ -20,12 +20,7 @@ Plat.Generate.Markdown -- Markdown ドキュメント生成
 
 Plat.Ext.*             -- 拡張モジュール (DDD, CQRS, CleanArch, Http, DBC, Flow, Events, Modules)
 
-Plat.Target.Go         -- Go コード生成 (skeleton, contract, verify)
-Plat.Target.TypeScript -- TypeScript コード生成
-Plat.Target.Rust       -- Rust コード生成
-
 Plat.Verify.Manifest   -- Architecture → JSON manifest
-Plat.Verify.DepRules   -- レイヤー依存 → linter 設定生成
 ```
 
 ## AST Design

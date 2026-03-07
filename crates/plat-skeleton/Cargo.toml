@@ -1,0 +1,13 @@
+[package]
+name = "plat-skeleton"
+version = "0.1.0"
+edition = "2021"
+description = "Generate code scaffolds from plat architecture manifest"
+
+[[bin]]
+name = "plat-skeleton"
+
+[dependencies]
+plat-manifest = { path = "../plat-manifest" }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }

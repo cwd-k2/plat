@@ -3,7 +3,7 @@ use std::process::Command;
 
 fn plat_verify_bin() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("target");
+    path.pop(); path.pop(); path.push("target");
     path.push("debug");
     path.push("plat-verify");
     path
@@ -11,9 +11,9 @@ fn plat_verify_bin() -> PathBuf {
 
 fn fixture_dir() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("test");
+    path.pop(); path.pop(); path.push("test");
     path.push("fixtures");
-    path.push("rust-clean-arch");
+    path.push("ts-hexagonal");
     path
 }
 
@@ -27,7 +27,7 @@ fn build_binary() {
 }
 
 #[test]
-fn rust_clean_arch_all_pass() {
+fn ts_hexagonal_all_pass() {
     build_binary();
 
     let dir = fixture_dir();
@@ -60,7 +60,7 @@ fn rust_clean_arch_all_pass() {
 }
 
 #[test]
-fn rust_clean_arch_json_output() {
+fn ts_hexagonal_json_output() {
     build_binary();
 
     let dir = fixture_dir();
@@ -82,22 +82,22 @@ fn rust_clean_arch_json_output() {
         serde_json::from_str(&stdout).expect("output should be valid JSON");
 
     assert_eq!(json["name"], "order-service");
-    assert_eq!(json["language"], "rust");
+    assert_eq!(json["language"], "typescript");
     assert_eq!(json["summary"]["errors"], 0);
 }
 
 #[test]
-fn rust_missing_type_reports_error() {
+fn ts_missing_type_reports_error() {
     build_binary();
 
     let dir = fixture_dir();
-    let empty_dir = std::env::temp_dir().join("plat-verify-empty-rust-test");
+    let empty_dir = std::env::temp_dir().join("plat-verify-empty-ts-test");
     let _ = std::fs::create_dir_all(&empty_dir);
 
     let output = Command::new(plat_verify_bin())
         .arg(dir.join("manifest.json"))
         .arg("--language")
-        .arg("rust")
+        .arg("typescript")
         .arg("--root")
         .arg(&empty_dir)
         .output()

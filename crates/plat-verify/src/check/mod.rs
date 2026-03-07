@@ -7,7 +7,7 @@ pub mod relation;
 
 use crate::config::{Config, Severity};
 use crate::extract::FileFacts;
-use crate::manifest::Manifest;
+use plat_manifest::Manifest;
 
 /// A single conformance finding.
 #[derive(Debug, Clone)]

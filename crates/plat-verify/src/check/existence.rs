@@ -1,8 +1,8 @@
 use crate::check::Finding;
 use crate::config::{Config, Severity};
 use crate::extract::{FileFacts, TypeDefKind};
-use crate::manifest::{DeclKind, Manifest};
-use crate::naming;
+use plat_manifest::{DeclKind, Manifest};
+use plat_manifest::naming;
 
 /// E0xx: Check that each manifest declaration has a corresponding source type.
 pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<Finding> {

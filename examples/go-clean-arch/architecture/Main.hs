@@ -12,9 +12,7 @@ import Plat.Ext.CleanArch      (cleanArchLayers, wire)
 
 import Data.Text (Text)
 import qualified Data.Text.IO as TIO
-import qualified Plat.Target.Go as Go
 import Plat.Verify.Manifest (manifest, renderManifest)
-import Plat.Verify.DepRules (depPolicy, renderDepMatrix)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>), takeDirectory)
 
@@ -70,22 +68,7 @@ main = do
   -- Mermaid
   out (dir </> "architecture.mmd") (renderMermaid architecture)
 
-  -- Dependency matrix
-  out (dir </> "dep-matrix.txt") (renderDepMatrix (depPolicy architecture))
-
-  -- Manifest
-  out (dir </> "manifest.toml") (renderManifest (manifest architecture))
-
-  -- Go skeleton
-  let goCfg = (Go.defaultConfig "github.com/example/order-service")
-        { Go.goLayerPkg = mempty
-        , Go.goTypeMap  = mempty
-        }
-  mapM_ (\(fp, content) -> out (dir </> "skeleton" </> fp) content)
-        (Go.skeleton goCfg architecture)
-
-  -- Go verify
-  mapM_ (\(fp, content) -> out (dir </> "verify" </> fp) content)
-        (Go.verify goCfg architecture)
+  -- Manifest (consumed by Rust tools: plat-verify, plat-skeleton, etc.)
+  out (dir </> "manifest.json") (renderManifest (manifest architecture))
 
   putStrLn "done."

@@ -1,4 +1,4 @@
-use crate::config::Case;
+use crate::Case;
 
 /// Split a PascalCase or camelCase identifier into words.
 fn split_words(s: &str) -> Vec<String> {
@@ -11,8 +11,6 @@ fn split_words(s: &str) -> Vec<String> {
                 current = String::new();
             }
         } else if ch.is_uppercase() && !current.is_empty() {
-            // Check if previous char was lowercase (camelCase boundary)
-            // or next forms a new word in ALLCAPS -> Word transition
             let prev_lower = current.chars().last().is_some_and(|c| c.is_lowercase());
             if prev_lower {
                 words.push(current);
@@ -51,7 +49,9 @@ pub fn convert(name: &str, target: Case) -> String {
             .map(|(i, w)| {
                 let mut chars = w.chars();
                 match chars.next() {
-                    Some(c) if i == 0 => c.to_lowercase().to_string() + &chars.as_str().to_lowercase(),
+                    Some(c) if i == 0 => {
+                        c.to_lowercase().to_string() + &chars.as_str().to_lowercase()
+                    }
                     Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
                     None => String::new(),
                 }

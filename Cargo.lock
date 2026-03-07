@@ -176,10 +176,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
+name = "plat-contract"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "plat-manifest",
+ "serde_json",
+]
+
+[[package]]
+name = "plat-deprules"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "plat-manifest",
+ "serde_json",
+]
+
+[[package]]
+name = "plat-manifest"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "plat-skeleton"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "plat-manifest",
+ "serde_json",
+]
+
+[[package]]
 name = "plat-verify"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "plat-manifest",
  "serde",
  "serde_json",
  "toml",

@@ -2,6 +2,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+// Re-export from plat-manifest so existing crate::config::{Language, Case} references work.
+pub use plat_manifest::{Case, Language};
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub source: SourceConfig,
@@ -28,70 +31,13 @@ pub struct SourceConfig {
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LayerMatch {
-    /// Match as a prefix of the relative path (traditional layer-first layout).
     #[default]
     Prefix,
-    /// Match against any path component (feature-first layout).
     Component,
 }
 
 fn default_root() -> PathBuf {
     PathBuf::from("./src")
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-#[serde(rename_all = "lowercase")]
-pub enum Language {
-    Go,
-    #[value(name = "typescript")]
-    TypeScript,
-    Rust,
-}
-
-impl Language {
-    pub fn extension(self) -> &'static str {
-        match self {
-            Self::Go => "go",
-            Self::TypeScript => "ts",
-            Self::Rust => "rs",
-        }
-    }
-
-    pub fn default_field_case(self) -> Case {
-        match self {
-            Self::Go => Case::Pascal,
-            Self::TypeScript => Case::Camel,
-            Self::Rust => Case::Snake,
-        }
-    }
-
-    pub fn default_method_case(self) -> Case {
-        match self {
-            Self::Go => Case::Pascal,
-            Self::TypeScript => Case::Camel,
-            Self::Rust => Case::Snake,
-        }
-    }
-}
-
-impl std::fmt::Display for Language {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Go => write!(f, "go"),
-            Self::TypeScript => write!(f, "typescript"),
-            Self::Rust => write!(f, "rust"),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub enum Case {
-    #[serde(rename = "PascalCase")]
-    Pascal,
-    #[serde(rename = "camelCase")]
-    Camel,
-    #[serde(rename = "snake_case")]
-    Snake,
 }
 
 #[derive(Debug, Default, Deserialize)]

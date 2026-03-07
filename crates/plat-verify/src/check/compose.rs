@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::check::Finding;
 use crate::config::Severity;
-use crate::manifest::{DeclKind, Manifest};
+use plat_manifest::{DeclKind, Manifest};
 
 /// R003/R004: Check compose/binding consistency against manifest declarations.
 pub fn check(manifest: &Manifest) -> Vec<Finding> {

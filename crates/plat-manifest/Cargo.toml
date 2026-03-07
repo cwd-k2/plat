@@ -1,0 +1,9 @@
+[package]
+name = "plat-manifest"
+version = "0.1.0"
+edition = "2021"
+description = "Shared manifest types, naming, and type mapping for plat tools"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

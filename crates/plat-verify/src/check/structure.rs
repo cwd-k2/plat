@@ -1,9 +1,9 @@
 use crate::check::Finding;
 use crate::config::{Config, Severity};
 use crate::extract::{FileFacts, TypeDefKind};
-use crate::manifest::{DeclKind, Manifest};
-use crate::naming;
-use crate::typemap;
+use plat_manifest::{DeclKind, Manifest};
+use plat_manifest::naming;
+use plat_manifest::typemap;
 
 /// S0xx: Check structural conformance (fields, methods).
 pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<Finding> {

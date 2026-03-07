@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::config::Language;
+use crate::Language;
 
 /// Build the default type mapping for a language.
 pub fn defaults(lang: Language) -> HashMap<&'static str, &'static str> {
@@ -47,9 +47,6 @@ pub fn defaults(lang: Language) -> HashMap<&'static str, &'static str> {
 }
 
 /// Resolve a manifest type string to the expected source type string.
-///
-/// Handles generics like `List<T>`, `Map<K, V>`, `Option<T>`, and
-/// the nullable shorthand `T?`.
 pub fn resolve(
     manifest_type: &str,
     lang: Language,
@@ -76,7 +73,11 @@ pub fn resolve(
             "Map" => wrap_map(lang, &args[0], &args[1]),
             "Option" => wrap_nullable(lang, &args[0]),
             "Set" => wrap_set(lang, &args[0]),
-            "Result" => wrap_result(lang, &args[0], args.get(1).map(|s| s.as_str()).unwrap_or("String")),
+            "Result" => wrap_result(
+                lang,
+                &args[0],
+                args.get(1).map(|s| s.as_str()).unwrap_or("String"),
+            ),
             "Stream" => wrap_stream(lang, &args[0]),
             _ => format!("{}<{}>", name, args.join(", ")),
         };
@@ -94,7 +95,7 @@ pub fn resolve(
     manifest_type.to_string()
 }
 
-pub(crate) fn split_generic_args(s: &str) -> Vec<&str> {
+pub fn split_generic_args(s: &str) -> Vec<&str> {
     let mut result = Vec::new();
     let mut depth = 0;
     let mut start = 0;
@@ -147,7 +148,7 @@ fn wrap_set(lang: Language, inner: &str) -> String {
 
 fn wrap_result(lang: Language, ok: &str, err: &str) -> String {
     match lang {
-        Language::Go => ok.to_string(), // Go uses (T, error) pattern
+        Language::Go => ok.to_string(),
         Language::TypeScript => ok.to_string(),
         Language::Rust => format!("Result<{ok}, {err}>"),
     }
@@ -166,16 +167,12 @@ pub fn is_error_type(manifest_type: &str) -> bool {
     manifest_type == "Error"
 }
 
-/// Built-in type names that should not be treated as user-defined type references.
 const BUILTINS: &[&str] = &[
-    "String", "Int", "Float", "Decimal", "Bool", "Unit", "Bytes",
-    "DateTime", "Any", "Error", "List", "Map", "Option", "Set",
-    "Result", "Stream",
+    "String", "Int", "Float", "Decimal", "Bool", "Unit", "Bytes", "DateTime", "Any", "Error",
+    "List", "Map", "Option", "Set", "Result", "Stream",
 ];
 
 /// Extract all user-defined type names referenced in a manifest type expression.
-///
-/// Strips nullable `?`, unwraps generic arguments, and filters out built-in types.
 pub fn extract_type_refs(manifest_type: &str) -> Vec<&str> {
     let mut refs = Vec::new();
     collect_type_refs(manifest_type, &mut refs);
@@ -188,13 +185,11 @@ fn collect_type_refs<'a>(typ: &'a str, refs: &mut Vec<&'a str>) {
         return;
     }
 
-    // Nullable shorthand: T?
     if let Some(inner) = typ.strip_suffix('?') {
         collect_type_refs(inner, refs);
         return;
     }
 
-    // Generic: Name<Args...>
     if let Some(pos) = typ.find('<') {
         let name = &typ[..pos];
         if !BUILTINS.contains(&name) {
@@ -207,7 +202,6 @@ fn collect_type_refs<'a>(typ: &'a str, refs: &mut Vec<&'a str>) {
         return;
     }
 
-    // Simple name
     if !BUILTINS.contains(&typ) {
         refs.push(typ);
     }
@@ -231,7 +225,10 @@ mod tests {
         let dm = defaults(Language::Go);
         let um = HashMap::new();
         assert_eq!(resolve("List<String>", Language::Go, &dm, &um), "[]string");
-        assert_eq!(resolve("Map<String, Int>", Language::Go, &dm, &um), "map[string]int");
+        assert_eq!(
+            resolve("Map<String, Int>", Language::Go, &dm, &um),
+            "map[string]int"
+        );
     }
 
     #[test]
@@ -253,7 +250,10 @@ mod tests {
     fn rust_result() {
         let dm = defaults(Language::Rust);
         let um = HashMap::new();
-        assert_eq!(resolve("Result<String, Error>", Language::Rust, &dm, &um), "Result<String, String>");
+        assert_eq!(
+            resolve("Result<String, Error>", Language::Rust, &dm, &um),
+            "Result<String, String>"
+        );
     }
 
     #[test]

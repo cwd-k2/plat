@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::check::Finding;
 use crate::config::Severity;
-use crate::manifest::Manifest;
-use crate::typemap;
+use plat_manifest::Manifest;
+use plat_manifest::typemap;
 
 /// L001: Check that declarations only reference types in allowed layers.
 pub fn check(manifest: &Manifest) -> Vec<Finding> {
@@ -99,7 +99,7 @@ pub fn check(manifest: &Manifest) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manifest::*;
+    use plat_manifest::*;
 
     fn make_manifest(declarations: Vec<Declaration>, bindings: Vec<Binding>) -> Manifest {
         Manifest {
