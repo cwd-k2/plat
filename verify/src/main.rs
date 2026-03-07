@@ -101,6 +101,7 @@ fn main() {
                 language: cli.language.unwrap(),
                 root: cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
                 layer_dirs: Default::default(),
+                layer_match: Default::default(),
             },
             types: Default::default(),
             naming: Default::default(),

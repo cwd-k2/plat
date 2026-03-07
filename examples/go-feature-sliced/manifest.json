@@ -1,0 +1,415 @@
+{
+  "name": "ecommerce-platform",
+  "layers": [
+    { "name": "enterprise", "depends": [] },
+    { "name": "application", "depends": ["enterprise", "interface"] },
+    { "name": "interface", "depends": ["enterprise"] },
+    { "name": "framework", "depends": ["enterprise", "interface", "application"] }
+  ],
+  "declarations": [
+    {
+      "name": "Money",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "amount", "type": "Decimal"}, {"name": "currency", "type": "String"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "Address",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "street", "type": "String"}, {"name": "city", "type": "String"}, {"name": "country", "type": "String"}, {"name": "zip", "type": "String"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "OrderStatus",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "Order",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "id", "type": "UUID"}, {"name": "customerId", "type": "UUID"}, {"name": "items", "type": "List<OrderItem>"}, {"name": "total", "type": "Money"}, {"name": "shipping", "type": "Address"}, {"name": "status", "type": "OrderStatus"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "OrderItem",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "productId", "type": "UUID"}, {"name": "name", "type": "String"}, {"name": "quantity", "type": "Int"}, {"name": "price", "type": "Money"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "OrderRepository",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [{"name": "save", "inputs": [{"name": "order", "type": "Order"}], "outputs": [{"name": "err", "type": "Error"}]}, {"name": "findById", "inputs": [{"name": "id", "type": "UUID"}], "outputs": [{"name": "order", "type": "Order"}, {"name": "err", "type": "Error"}]}, {"name": "findAll", "inputs": [], "outputs": [{"name": "orders", "type": "List<Order>"}, {"name": "err", "type": "Error"}]}, {"name": "delete", "inputs": [{"name": "id", "type": "UUID"}], "outputs": [{"name": "err", "type": "Error"}]}],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "PlaceOrder",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["OrderRepository", "PaymentGateway"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "CancelOrder",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["OrderRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "GetOrder",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["OrderRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "ListOrders",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["OrderRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "InMemoryOrderRepo",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "OrderRepository",
+      "injects": [{"name": "store", "type": "sync.Map"}],
+      "entries": []
+    }
+,
+    {
+      "name": "Category",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "id", "type": "String"}, {"name": "name", "type": "String"}, {"name": "description", "type": "String"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "Product",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "id", "type": "UUID"}, {"name": "name", "type": "String"}, {"name": "description", "type": "String"}, {"name": "price", "type": "Money"}, {"name": "categoryId", "type": "String"}, {"name": "stock", "type": "Int"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "ProductRepository",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [{"name": "save", "inputs": [{"name": "product", "type": "Product"}], "outputs": [{"name": "err", "type": "Error"}]}, {"name": "findById", "inputs": [{"name": "id", "type": "UUID"}], "outputs": [{"name": "product", "type": "Product"}, {"name": "err", "type": "Error"}]}, {"name": "findAll", "inputs": [], "outputs": [{"name": "products", "type": "List<Product>"}, {"name": "err", "type": "Error"}]}, {"name": "delete", "inputs": [{"name": "id", "type": "UUID"}], "outputs": [{"name": "err", "type": "Error"}]}],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "ProductSearch",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [{"name": "search", "inputs": [{"name": "query", "type": "String"}], "outputs": [{"name": "products", "type": "List<Product>"}, {"name": "err", "type": "Error"}]}],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "CreateProduct",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["ProductRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "GetProduct",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["ProductRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "SearchProducts",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["ProductSearch"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "InMemoryProductRepo",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "ProductRepository",
+      "injects": [{"name": "store", "type": "sync.Map"}],
+      "entries": []
+    }
+,
+    {
+      "name": "InMemoryProductSearch",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "ProductSearch",
+      "injects": [{"name": "store", "type": "sync.Map"}],
+      "entries": []
+    }
+,
+    {
+      "name": "PaymentStatus",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "Payment",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [{"name": "id", "type": "UUID"}, {"name": "orderId", "type": "UUID"}, {"name": "amount", "type": "Money"}, {"name": "status", "type": "PaymentStatus"}, {"name": "transactionId", "type": "String"}],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "PaymentGateway",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [{"name": "charge", "inputs": [{"name": "amount", "type": "Money"}, {"name": "token", "type": "String"}], "outputs": [{"name": "txId", "type": "String"}, {"name": "err", "type": "Error"}]}, {"name": "refund", "inputs": [{"name": "txId", "type": "String"}], "outputs": [{"name": "err", "type": "Error"}]}],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "PaymentRepository",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [{"name": "save", "inputs": [{"name": "payment", "type": "Payment"}], "outputs": [{"name": "err", "type": "Error"}]}, {"name": "findByOrder", "inputs": [{"name": "orderId", "type": "UUID"}], "outputs": [{"name": "payment", "type": "Payment"}, {"name": "err", "type": "Error"}]}],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "ProcessPayment",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["PaymentGateway", "PaymentRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "GetPayment",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["PaymentRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    }
+,
+    {
+      "name": "InMemoryPaymentRepo",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "PaymentRepository",
+      "injects": [{"name": "store", "type": "sync.Map"}],
+      "entries": []
+    }
+,
+    {
+      "name": "StubPaymentGateway",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "PaymentGateway",
+      "injects": [{"name": "logger", "type": "log.Logger"}],
+      "entries": []
+    }
+,
+    {
+      "name": "SharedKernel",
+      "kind": "compose",
+      "layer": null,
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": ["Money", "Address"]
+    }
+,
+    {
+      "name": "OrderFeature",
+      "kind": "compose",
+      "layer": null,
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": ["Order", "OrderItem", "OrderStatus", "OrderRepository", "PlaceOrder", "CancelOrder", "GetOrder", "ListOrders", "InMemoryOrderRepo"]
+    }
+,
+    {
+      "name": "CatalogFeature",
+      "kind": "compose",
+      "layer": null,
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": ["Category", "Product", "ProductRepository", "ProductSearch", "CreateProduct", "GetProduct", "SearchProducts", "InMemoryProductRepo", "InMemoryProductSearch"]
+    }
+,
+    {
+      "name": "PaymentFeature",
+      "kind": "compose",
+      "layer": null,
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": ["Payment", "PaymentStatus", "PaymentGateway", "PaymentRepository", "ProcessPayment", "GetPayment", "InMemoryPaymentRepo", "StubPaymentGateway"]
+    }
+,
+    {
+      "name": "ECommerceWiring",
+      "kind": "compose",
+      "layer": null,
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": ["PlaceOrder", "CancelOrder", "GetOrder", "ListOrders", "CreateProduct", "GetProduct", "SearchProducts", "ProcessPayment", "GetPayment"]
+    }
+
+  ],
+  "bindings": [
+    {"boundary": "OrderRepository", "adapter": "InMemoryOrderRepo"},
+    {"boundary": "ProductRepository", "adapter": "InMemoryProductRepo"},
+    {"boundary": "ProductSearch", "adapter": "InMemoryProductSearch"},
+    {"boundary": "PaymentGateway", "adapter": "StubPaymentGateway"},
+    {"boundary": "PaymentRepository", "adapter": "InMemoryPaymentRepo"}
+  ]
+}
+

@@ -20,6 +20,19 @@ pub struct SourceConfig {
     pub root: PathBuf,
     #[serde(default)]
     pub layer_dirs: HashMap<String, String>,
+    #[serde(default)]
+    pub layer_match: LayerMatch,
+}
+
+/// How layer_dirs values are matched against file paths.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LayerMatch {
+    /// Match as a prefix of the relative path (traditional layer-first layout).
+    #[default]
+    Prefix,
+    /// Match against any path component (feature-first layout).
+    Component,
 }
 
 fn default_root() -> PathBuf {

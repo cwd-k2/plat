@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 use crate::cache::ExtractCache;
-use crate::config::{Config, Language};
+use crate::config::{Config, Language, LayerMatch};
 
 /// A type definition extracted from source code.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +108,7 @@ pub fn extract_all(
         }
 
         if !types.is_empty() {
-            let layer = resolve_layer(path, root, layer_dirs);
+            let layer = resolve_layer(path, root, layer_dirs, config.source.layer_match);
             facts.push(FileFacts {
                 path: path.to_path_buf(),
                 layer,
@@ -138,13 +138,28 @@ pub fn resolve_layer(
     file: &Path,
     root: &Path,
     layer_dirs: &HashMap<String, String>,
+    layer_match: LayerMatch,
 ) -> Option<String> {
     let rel = file.strip_prefix(root).ok()?;
     let rel_str = rel.to_string_lossy();
-    // Find the layer whose directory is a prefix of the relative path
-    layer_dirs
-        .iter()
-        .filter(|(_, dir)| rel_str.starts_with(dir.as_str()))
-        .max_by_key(|(_, dir)| dir.len())
-        .map(|(layer, _)| layer.clone())
+    match layer_match {
+        LayerMatch::Prefix => {
+            layer_dirs
+                .iter()
+                .filter(|(_, dir)| rel_str.starts_with(dir.as_str()))
+                .max_by_key(|(_, dir)| dir.len())
+                .map(|(layer, _)| layer.clone())
+        }
+        LayerMatch::Component => {
+            // Match layer_dirs values against any path component
+            let components: Vec<&str> = rel.components()
+                .filter_map(|c| c.as_os_str().to_str())
+                .collect();
+            layer_dirs
+                .iter()
+                .filter(|(_, dir)| components.contains(&dir.as_str()))
+                .max_by_key(|(_, dir)| dir.len())
+                .map(|(layer, _)| layer.clone())
+        }
+    }
 }

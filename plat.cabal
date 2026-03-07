@@ -77,6 +77,18 @@ executable example-rust-cqrs-es
     OverloadedStrings
   ghc-options: -Wall
 
+executable example-go-feature-sliced
+  main-is:          GoFeatureSliced.hs
+  hs-source-dirs:   examples/go-feature-sliced
+  build-depends:
+    , base    >= 4.18 && < 5
+    , plat
+    , text    >= 2.0
+  default-language: GHC2024
+  default-extensions:
+    OverloadedStrings
+  ghc-options: -Wall
+
 test-suite plat-test
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
