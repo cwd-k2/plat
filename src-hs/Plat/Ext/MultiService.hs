@@ -42,7 +42,9 @@ module Plat.Ext.MultiService
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Graph (stronglyConnComp, SCC(..))
 
 import Plat.Core.Types
 import Plat.Core.Builder (DeclWriter)
@@ -276,33 +278,10 @@ extractTypeRefs d = concatMap itemRefs (declBody d)
     typeRefNames (TNullable t)    = typeRefNames t
     typeRefNames _                = []
 
--- Simple DFS cycle detection on a directed graph.
+-- | SCC による循環検出。O(V+E)。
 findCycles :: [Text] -> [(Text, Text)] -> [[Text]]
-findCycles nodes edges = go Set.empty Set.empty [] nodes
+findCycles nodes edges =
+    [ ns | CyclicSCC ns <- stronglyConnComp graph ]
   where
-    adj node = [to | (from, to) <- edges, from == node]
-
-    go _ _ acc [] = acc
-    go visited inStack acc (n:ns)
-      | n `Set.member` visited = go visited inStack acc ns
-      | otherwise =
-          let (cycles, visited', inStack') = dfs n visited inStack [n]
-          in go visited' inStack' (cycles ++ acc) ns
-
-    dfs node visited inStack path_ =
-      let visited' = Set.insert node visited
-          inStack' = Set.insert node inStack
-          neighbors = adj node
-          (cycles, v, s) = foldNeighbors neighbors visited' inStack' path_ []
-      in (cycles, v, Set.delete node s)
-
-    foldNeighbors [] v s _ acc = (acc, v, s)
-    foldNeighbors (n:ns) v s path_ acc
-      | n `Set.member` s =
-          -- Found cycle: extract from the point where n first appeared
-          let cycleNodes = dropWhile (/= n) path_ ++ [n]
-          in foldNeighbors ns v s path_ (cycleNodes : acc)
-      | n `Set.member` v = foldNeighbors ns v s path_ acc
-      | otherwise =
-          let (cycles, v', s') = dfs n v s (path_ ++ [n])
-          in foldNeighbors ns v' s' path_ (cycles ++ acc)
+    adjMap = Map.fromListWith (++) [(from, [to]) | (from, to) <- edges]
+    graph  = [ (n, n, Map.findWithDefault [] n adjMap) | n <- nodes ]

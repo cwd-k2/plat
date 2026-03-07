@@ -14,10 +14,11 @@ module Plat.Check.Presets
   ) where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Set as Set
 
 import Plat.Core.Types
-import Plat.Core.Relation (isAcyclic)
+import Plat.Core.Relation (cyclicGroups)
 
 -- | 全 adapter が boundary を implements していることを要求する。
 operationNeedsBoundary :: Architecture -> [Text]
@@ -41,7 +42,10 @@ unwiredBoundaries a =
       [ bnd | dd <- archDecls a, Bind bnd _ <- declBody dd ]
 
 -- | needs 関係にサイクルがないことを要求する。
+--
+-- サイクルが存在する場合、各サイクルの構成ノードを報告する。
 noNeedsCycle :: Architecture -> [Text]
-noNeedsCycle a
-  | isAcyclic ["needs"] a = []
-  | otherwise = ["needs dependency graph contains a cycle"]
+noNeedsCycle a =
+  [ "needs dependency cycle: " <> T.intercalate " → " g
+  | g <- cyclicGroups ["needs"] a
+  ]

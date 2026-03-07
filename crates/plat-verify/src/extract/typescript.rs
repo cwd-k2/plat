@@ -2,7 +2,29 @@ use std::path::Path;
 
 use tree_sitter::Parser;
 
-use super::{MethodDef, TypeDef, TypeDefKind};
+use super::{LanguageAdapter, MethodDef, TypeDef, TypeDefKind};
+
+pub struct TypeScriptAdapter;
+
+impl LanguageAdapter for TypeScriptAdapter {
+    fn extension(&self) -> &'static str { "ts" }
+
+    fn is_test_file(&self, path: &Path, _root: &Path) -> bool {
+        is_test_file(path)
+    }
+
+    fn parse_types(&self, parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef> {
+        parse_file(parser, source, file)
+    }
+
+    fn parse_imports(&self, _parser: &mut Parser, source: &str) -> Vec<String> {
+        parse_imports(source)
+    }
+
+    fn new_parser(&self) -> Result<Parser, Box<dyn std::error::Error>> {
+        new_parser()
+    }
+}
 
 /// Create a TypeScript tree-sitter parser.
 pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {

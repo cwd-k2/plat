@@ -51,7 +51,9 @@ pub fn render(findings: &[Finding], summary: &Summary, name: &str, language: &st
             "    \"errors\": {},\n",
             "    \"warnings\": {},\n",
             "    \"info\": {},\n",
-            "    \"declarations\": {{ \"checked\": {}, \"ok\": {} }}\n",
+            "    \"declarations\": {{ \"checked\": {}, \"ok\": {} }},\n",
+            "    \"convergence\": {{ \"types\": [{}, {}], \"fields\": [{}, {}], \"methods\": [{}, {}] }},\n",
+            "    \"health_score\": {:.4}\n",
             "  }}\n",
             "}}\n"
         ),
@@ -62,7 +64,11 @@ pub fn render(findings: &[Finding], summary: &Summary, name: &str, language: &st
         summary.warnings,
         summary.info,
         summary.decls_checked,
-        summary.decls_ok
+        summary.decls_ok,
+        summary.convergence.types_found, summary.convergence.types_expected,
+        summary.convergence.fields_found, summary.convergence.fields_expected,
+        summary.convergence.methods_found, summary.convergence.methods_expected,
+        summary.convergence.health_score()
     )
 }
 

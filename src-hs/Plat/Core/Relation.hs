@@ -16,6 +16,11 @@ module Plat.Core.Relation
   , transitive
   , reachable
   , isAcyclic
+  , cyclicGroups
+
+    -- * Impact analysis
+  , forwardImpact
+  , reverseImpact
 
     -- * TypeExpr helpers
   , typeRefs
@@ -24,6 +29,7 @@ module Plat.Core.Relation
 import Data.Text (Text)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Graph (stronglyConnComp, SCC(..))
 
 import Plat.Core.Types
 
@@ -109,20 +115,50 @@ reachable start a = go Set.empty [start]
                        (Map.findWithDefault [] x adjMap ++ xs)
 
 -- | 指定種類の関係がサイクルを含まないか検査する。
+--
+-- 内部で強連結成分分解 (Tarjan's SCC) を使用し O(V+E) で判定する。
 isAcyclic :: [Text] -> Architecture -> Bool
-isAcyclic kinds a = all (\d -> declName d `Set.notMember` reach d) (archDecls a)
+isAcyclic kinds a = null (cyclicGroups kinds a)
+
+-- | 指定種類の関係グラフに含まれるサイクル群を返す。
+--
+-- 各サイクルは強連結成分 (SCC) として報告される。
+-- サイクルがなければ空リストを返す。O(V+E)。
+cyclicGroups :: [Text] -> Architecture -> [[Text]]
+cyclicGroups kinds a =
+    [ ns | CyclicSCC ns <- stronglyConnComp graph ]
   where
     kindSet = Set.fromList kinds
-    adjMap = Map.fromListWith (++)
-      [ (relSource r, [relTarget r])
-      | r <- relations a, relKind r `Set.member` kindSet
-      ]
-    reach d = go Set.empty (Map.findWithDefault [] (declName d) adjMap)
+    rels = [ (relSource r, relTarget r)
+           | r <- relations a, relKind r `Set.member` kindSet
+           ]
+    allNodes = Set.toList $ Set.fromList
+                 (map fst rels ++ map snd rels)
+    adjMap = Map.fromListWith (++) [(s, [t]) | (s, t) <- rels]
+    graph  = [ (n, n, Map.findWithDefault [] n adjMap)
+             | n <- allNodes
+             ]
+
+-- | 指定宣言を変更した場合に影響を受ける宣言集合（起点は含まない）。
+--
+-- 全関係種について、指定宣言に依存する宣言を推移的に辿る。
+forwardImpact :: Text -> Architecture -> Set.Set Text
+forwardImpact start a = Set.delete start (go Set.empty [start])
+  where
+    -- 逆方向の隣接リスト: ターゲット → [ソース]
+    revMap = Map.fromListWith (++)
+      [ (relTarget r, [relSource r]) | r <- relations a ]
     go visited [] = visited
     go visited (x:xs)
       | x `Set.member` visited = go visited xs
       | otherwise = go (Set.insert x visited)
-                       (Map.findWithDefault [] x adjMap ++ xs)
+                       (Map.findWithDefault [] x revMap ++ xs)
+
+-- | 指定宣言が依存する宣言集合（起点は含まない）。
+--
+-- 全関係種について、指定宣言から推移的に到達可能な宣言を辿る。
+reverseImpact :: Text -> Architecture -> Set.Set Text
+reverseImpact start a = Set.delete start (reachable start a)
 
 -- | TypeExpr から全 TRef 名を抽出する。
 typeRefs :: TypeExpr -> [Text]

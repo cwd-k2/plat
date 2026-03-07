@@ -39,5 +39,17 @@ pub fn render(findings: &[Finding], summary: &Summary, name: &str, language: &st
         summary.decls_checked - summary.decls_ok
     ));
 
+    let c = &summary.convergence;
+    out.push_str(&format!(
+        "  convergence:  types {}/{}, fields {}/{}, methods {}/{}\n",
+        c.types_found, c.types_expected,
+        c.fields_found, c.fields_expected,
+        c.methods_found, c.methods_expected,
+    ));
+    out.push_str(&format!(
+        "  health score: {:.0}%\n",
+        c.health_score() * 100.0
+    ));
+
     out
 }

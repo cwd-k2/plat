@@ -1,6 +1,6 @@
 pub use plat_manifest::naming::convert;
 pub use plat_manifest::typemap;
-pub use plat_manifest::{Case, DeclKind, Declaration, Field, Language, Manifest, Op};
+pub use plat_manifest::{Binding, Case, DeclKind, Declaration, Field, Language, Manifest, Op};
 
 use std::collections::HashMap;
 
@@ -115,6 +115,96 @@ pub fn generate(cfg: &Config, manifest: &Manifest) -> Vec<(String, String)> {
         Language::TypeScript => generate_ts(cfg, manifest),
         Language::Rust => generate_rust(cfg, manifest),
     }
+}
+
+// ---------------------------------------------------------------------------
+// DI configuration generation
+// ---------------------------------------------------------------------------
+
+/// Generate DI wiring code from compose declarations' bindings.
+///
+/// Each binding maps a boundary (interface) to an adapter (implementation).
+/// Output varies by language:
+/// - Go: Wire provider set
+/// - TypeScript: tsyringe container bindings
+/// - Rust: manual constructor wiring
+pub fn generate_di(cfg: &Config, manifest: &Manifest) -> Vec<(String, String)> {
+    let bindings: Vec<&Binding> = manifest.bindings.iter().collect();
+
+    if bindings.is_empty() {
+        return Vec::new();
+    }
+
+    match cfg.language {
+        Language::Go => generate_di_go(cfg, &bindings),
+        Language::TypeScript => generate_di_ts(&bindings),
+        Language::Rust => generate_di_rust(&bindings),
+    }
+}
+
+fn generate_di_go(cfg: &Config, bindings: &[&Binding]) -> Vec<(String, String)> {
+    let mut out = String::new();
+    let pkg = "di";
+    out.push_str(&format!("package {pkg}\n"));
+    out.push('\n');
+    out.push_str("import (\n");
+    out.push_str("\t\"github.com/google/wire\"\n");
+
+    if let Some(ref go_mod) = cfg.go_module {
+        out.push_str(&format!("\t\"{go_mod}/port\"\n"));
+        out.push_str(&format!("\t\"{go_mod}/adapter\"\n"));
+    }
+    out.push_str(")\n");
+    out.push('\n');
+
+    out.push_str("// ProviderSet binds boundaries to adapters.\n");
+    out.push_str("var ProviderSet = wire.NewSet(\n");
+    for b in bindings {
+        let adapter_ctor = format!("New{}", pascal(&b.adapter));
+        let boundary_iface = format!("new({})", pascal(&b.boundary));
+        out.push_str(&format!("\t{adapter_ctor},\n"));
+        out.push_str(&format!("\twire.Bind({boundary_iface}, new({})),\n", pascal(&b.adapter)));
+    }
+    out.push_str(")\n");
+
+    vec![(format!("{pkg}/wire_gen.go"), out)]
+}
+
+fn generate_di_ts(bindings: &[&Binding]) -> Vec<(String, String)> {
+    let mut out = String::new();
+    out.push_str("// Generated DI container bindings\n");
+    out.push_str("import { container } from 'tsyringe';\n");
+    out.push('\n');
+
+    for b in bindings {
+        out.push_str(&format!(
+            "container.register<{}>('{}', {{ useClass: {} }});\n",
+            b.boundary, b.boundary, b.adapter
+        ));
+    }
+
+    vec![("di/container.ts".to_string(), out)]
+}
+
+fn generate_di_rust(bindings: &[&Binding]) -> Vec<(String, String)> {
+    let mut out = String::new();
+    out.push_str("// Generated DI wiring\n");
+    out.push('\n');
+    out.push_str("pub fn wire() -> Container {\n");
+    out.push_str("    let mut container = Container::new();\n");
+
+    for b in bindings {
+        let adapter_snake = snake(&b.adapter);
+        out.push_str(&format!(
+            "    container.bind::<dyn {}>({adapter_snake}::{}::new());\n",
+            b.boundary, b.adapter
+        ));
+    }
+
+    out.push_str("    container\n");
+    out.push_str("}\n");
+
+    vec![("di/wire.rs".to_string(), out)]
 }
 
 // ---------------------------------------------------------------------------

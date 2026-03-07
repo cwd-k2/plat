@@ -99,10 +99,72 @@ instance PlatRule ImportNotExposedRule where
                  && target `elem` references modules "expose" dd)
             (archDecls a)
 
+-- | MOD-V003: モジュール外からの expose されていない宣言への references 参照を検出。
+--
+-- domain モジュールが宣言のスコープを制限する。expose されていない宣言を
+-- 他モジュールの宣言から型参照している場合にエラーとする。
+data UnexposedReferenceRule = UnexposedReferenceRule
+instance PlatRule UnexposedReferenceRule where
+  ruleCode _ = "MOD-V003"
+  checkArch _ a =
+    [ Diagnostic Error "MOD-V003"
+        (refSrc <> " references unexposed " <> refTgt <> " from module " <> tgtMod)
+        refSrc (Just refTgt)
+    | (refSrc, refTgt) <- allRefs
+    , let srcMod = ownerModule refSrc
+    , let tgtMod_ = ownerModule refTgt
+    , Just tgtMod <- [tgtMod_]
+    , srcMod /= tgtMod_
+    , refTgt `Set.notMember` exposedByModule tgtMod
+    ]
+    where
+      mods = [d | d <- archDecls a, isTagged modulesDomain d]
+
+      moduleEntries = Set.fromList
+        [ (declName m, e)
+        | m <- mods
+        , Entry e <- declBody m
+        ]
+
+      allEntryNames = Set.fromList [e | (_, e) <- Set.toList moduleEntries]
+
+      ownerModule name =
+        case [declName m | m <- mods, Entry name `elem` declBody m] of
+          (m:_) -> Just m
+          []    -> Nothing
+
+      exposedByModule modName =
+        Set.fromList [ ref
+                     | m <- mods
+                     , declName m == modName
+                     , ref <- references modules "expose" m
+                     ]
+
+      allRefs =
+        [ (declName d, tgt)
+        | d <- archDecls a
+        , not (isTagged modulesDomain d)
+        , item <- declBody d
+        , tgt <- itemRefTargets item
+        , tgt `Set.member` allEntryNames
+        ]
+
+      itemRefTargets (Field _ ty)  = typeRefNames ty
+      itemRefTargets (Input _ ty)  = typeRefNames ty
+      itemRefTargets (Output _ ty) = typeRefNames ty
+      itemRefTargets (Needs n)     = [n]
+      itemRefTargets _             = []
+
+      typeRefNames (TRef n)        = [n]
+      typeRefNames (TGeneric _ ts) = concatMap typeRefNames ts
+      typeRefNames (TNullable t)   = typeRefNames t
+      typeRefNames _               = []
+
 -- | Modules 拡張の検証ルール一覧
 modulesRules :: [SomeRule]
 modulesRules =
   [ SomeRule ExposeExistsRule
   , SomeRule ImportSourceExistsRule
   , SomeRule ImportNotExposedRule
+  , SomeRule UnexposedReferenceRule
   ]

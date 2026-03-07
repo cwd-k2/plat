@@ -76,6 +76,19 @@ testRelations = do
         in "PlaceOrder" `Set.member` reach && "OrderRepository" `Set.member` reach)
     , ("isAcyclic: needs is acyclic",
         isAcyclic ["needs"] relArch)
+    , ("cyclicGroups: no cycles in acyclic graph",
+        null (cyclicGroups ["needs"] relArch))
+    , ("cyclicGroups: detects cycle",
+        let a = model "CycA" core $ field "x" string
+            b = model "CycB" core $ field "y" string
+            cycArch = arch "cyc-test" $ do
+              useLayers [core]
+              declare a
+              declare b
+              relate "dep" a b
+              relate "dep" b a
+            gs = cyclicGroups ["dep"] cycArch
+        in not (null gs) && not (isAcyclic ["dep"] cycArch))
     , ("typeRefs extracts TRef",
         typeRefs (listOf order) == ["Order"])
     , ("typeRefs extracts nullable",

@@ -2,7 +2,29 @@ use std::path::Path;
 
 use tree_sitter::Parser;
 
-use super::{MethodDef, TypeDef, TypeDefKind};
+use super::{LanguageAdapter, MethodDef, TypeDef, TypeDefKind};
+
+pub struct RustAdapter;
+
+impl LanguageAdapter for RustAdapter {
+    fn extension(&self) -> &'static str { "rs" }
+
+    fn is_test_file(&self, path: &Path, root: &Path) -> bool {
+        is_test_file(path, root)
+    }
+
+    fn parse_types(&self, parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef> {
+        parse_file(parser, source, file)
+    }
+
+    fn parse_imports(&self, _parser: &mut Parser, source: &str) -> Vec<String> {
+        parse_imports(source)
+    }
+
+    fn new_parser(&self) -> Result<Parser, Box<dyn std::error::Error>> {
+        new_parser()
+    }
+}
 
 /// Create a Rust tree-sitter parser.
 pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {

@@ -101,6 +101,9 @@ module Plat.Core
   , transitive
   , reachable
   , isAcyclic
+  , cyclicGroups
+  , forwardImpact
+  , reverseImpact
   , typeRefs
 
     -- * Architecture algebra

@@ -11,6 +11,32 @@ use walkdir::WalkDir;
 use crate::cache::ExtractCache;
 use crate::config::{Config, Language, LayerMatch};
 
+/// Language-agnostic adapter for source code extraction.
+///
+/// Each supported language implements this trait, providing:
+/// - Parser construction
+/// - Test file detection
+/// - Type/import extraction from source text
+///
+/// Adding a new language requires implementing this trait and
+/// registering it in `adapter_for`.
+pub trait LanguageAdapter {
+    fn extension(&self) -> &'static str;
+    fn is_test_file(&self, path: &Path, root: &Path) -> bool;
+    fn parse_types(&self, parser: &mut tree_sitter::Parser, source: &str, file: &Path) -> Vec<TypeDef>;
+    fn parse_imports(&self, parser: &mut tree_sitter::Parser, source: &str) -> Vec<String>;
+    fn new_parser(&self) -> Result<tree_sitter::Parser, Box<dyn std::error::Error>>;
+}
+
+/// Create the appropriate adapter for a language.
+pub fn adapter_for(lang: Language) -> Box<dyn LanguageAdapter> {
+    match lang {
+        Language::Go => Box::new(go::GoAdapter),
+        Language::TypeScript => Box::new(typescript::TypeScriptAdapter),
+        Language::Rust => Box::new(rust::RustAdapter),
+    }
+}
+
 /// A type definition extracted from source code.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeDef {
@@ -58,16 +84,11 @@ pub fn extract_all(
     mut cache: Option<&mut ExtractCache>,
 ) -> Result<Vec<FileFacts>, Box<dyn std::error::Error>> {
     let root = &config.source.root;
-    let lang = config.source.language;
-    let ext = lang.extension();
+    let adapter = adapter_for(config.source.language);
+    let ext = adapter.extension();
     let layer_dirs = &config.source.layer_dirs;
 
-    let mut parser = match lang {
-        Language::Go => go::new_parser()?,
-        Language::TypeScript => typescript::new_parser()?,
-        Language::Rust => rust::new_parser()?,
-    };
-
+    let mut parser = adapter.new_parser()?;
     let mut facts = Vec::new();
 
     for entry in WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
@@ -79,13 +100,7 @@ pub fn extract_all(
             continue;
         }
 
-        // Skip test files
-        let is_test = match lang {
-            Language::Go => go::is_test_file(path),
-            Language::TypeScript => typescript::is_test_file(path),
-            Language::Rust => rust::is_test_file(path, root),
-        };
-        if is_test {
+        if adapter.is_test_file(path, root) {
             continue;
         }
 
@@ -97,14 +112,14 @@ pub fn extract_all(
                 cached
             } else {
                 let source = std::fs::read_to_string(path)?;
-                let types = parse_source(lang, &mut parser, &source, path);
-                let imports = parse_imports(lang, &source);
+                let types = adapter.parse_types(&mut parser, &source, path);
+                let imports = adapter.parse_imports(&mut parser, &source);
                 (types, imports)
             }
         } else {
             let source = std::fs::read_to_string(path)?;
-            let types = parse_source(lang, &mut parser, &source, path);
-            let imports = parse_imports(lang, &source);
+            let types = adapter.parse_types(&mut parser, &source, path);
+            let imports = adapter.parse_imports(&mut parser, &source);
             (types, imports)
         };
 
@@ -125,27 +140,6 @@ pub fn extract_all(
     }
 
     Ok(facts)
-}
-
-fn parse_source(
-    lang: Language,
-    parser: &mut tree_sitter::Parser,
-    source: &str,
-    path: &Path,
-) -> Vec<TypeDef> {
-    match lang {
-        Language::Go => go::parse_file(parser, source, path),
-        Language::TypeScript => typescript::parse_file(parser, source, path),
-        Language::Rust => rust::parse_file(parser, source, path),
-    }
-}
-
-fn parse_imports(lang: Language, source: &str) -> Vec<String> {
-    match lang {
-        Language::Go => go::parse_imports(source),
-        Language::TypeScript => typescript::parse_imports(source),
-        Language::Rust => rust::parse_imports(source),
-    }
 }
 
 /// Resolve which layer a file belongs to based on layer_dirs mapping.

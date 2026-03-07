@@ -75,6 +75,24 @@ instance PlatRule QuerySharedBoundaryRule where
       commandNeeds = Set.fromList
         [ n | c <- archDecls a, isCommand c, n <- declNeeds c ]
 
+-- | CQRS-V001: command が出力型を持つべきでない (CQS 原則)。
+--
+-- command は副作用を実行するが値を返さない。出力型が定義されている場合に警告する。
+data CommandNoOutputRule = CommandNoOutputRule
+instance PlatRule CommandNoOutputRule where
+  ruleCode _ = "CQRS-V001"
+  checkDecl _ _ d
+    | isCommand d
+    , not (null [() | Output _ _ <- declBody d])
+    = [ Diagnostic Warning "CQRS-V001"
+          ("command " <> declName d <> " should not have output (CQS principle)")
+          (declName d) Nothing
+      ]
+    | otherwise = []
+
 -- | CQRS 拡張の検証ルール一覧
 cqrsRules :: [SomeRule]
-cqrsRules = [SomeRule QuerySharedBoundaryRule]
+cqrsRules =
+  [ SomeRule QuerySharedBoundaryRule
+  , SomeRule CommandNoOutputRule
+  ]

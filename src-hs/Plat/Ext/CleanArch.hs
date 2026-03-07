@@ -27,10 +27,12 @@ module Plat.Ext.CleanArch
   ) where
 
 import Data.Text (Text)
+import qualified Data.Map.Strict as Map
 
 import Plat.Core.Types
 import Plat.Core.Builder
 import Plat.Core.Meta
+import Plat.Core.Relation (relations)
 import Plat.Check.Class
 
 ----------------------------------------------------------------------
@@ -132,9 +134,39 @@ instance PlatRule WireNoBindsRule where
       ]
     | otherwise = []
 
+-- | CA-V002: enterprise/interface レイヤーの宣言が framework/application レイヤーの
+-- 宣言を参照していないことを検査する (依存性ルール違反)。
+data InwardDependencyRule = InwardDependencyRule
+instance PlatRule InwardDependencyRule where
+  ruleCode _ = "CA-V002"
+  checkArch _ a =
+    [ Diagnostic Error "CA-V002"
+        (src <> " (" <> srcLayer <> ") references " <> tgt <> " (" <> tgtLayer <> ")")
+        src Nothing
+    | r <- relations a
+    , relKind r `elem` ["needs", "references"]
+    , let src = relSource r
+    , let tgt = relTarget r
+    , let srcLayer = Map.findWithDefault "" src layerMap
+    , let tgtLayer = Map.findWithDefault "" tgt layerMap
+    , isInner srcLayer
+    , isOuter tgtLayer
+    ]
+    where
+      layerMap = Map.fromList
+        [ (declName d, ly)
+        | d <- archDecls a
+        , Just ly <- [declLayer d]
+        ]
+      innerLayers = ["enterprise", "interface"]
+      outerLayers = ["framework", "application"]
+      isInner ly = ly `elem` innerLayers
+      isOuter ly = ly `elem` outerLayers
+
 -- | CleanArch 拡張の検証ルール一覧
 cleanArchRules :: [SomeRule]
 cleanArchRules =
   [ SomeRule ImplNeedsImplementsRule
   , SomeRule WireNoBindsRule
+  , SomeRule InwardDependencyRule
   ]

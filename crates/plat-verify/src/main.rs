@@ -141,8 +141,11 @@ fn verify_once(params: &VerifyParams) -> i32 {
     let mut findings = check::run_checks(&manifest, &facts, &params.config);
     findings.retain(|f| f.severity >= params.severity);
 
+    // Compute convergence (Reflexion Model)
+    let convergence = check::compute_convergence(&manifest, &facts, &params.config);
+
     // Report
-    let summary = check::Summary::from_findings(&findings, manifest.declarations.len());
+    let summary = check::Summary::from_findings(&findings, manifest.declarations.len(), convergence);
 
     if !params.quiet {
         let output = report::render(

@@ -24,6 +24,7 @@ import qualified Data.Text as T
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as Set
+import Data.Graph (stronglyConnComp, SCC(..))
 
 import Plat.Core.Types
 import Plat.Core.Relation (typeRefs)
@@ -100,40 +101,20 @@ referencedLayers d arch = mapMaybe lookupLayer refNames
 data LayerCycleRule = LayerCycleRule
 instance PlatRule LayerCycleRule where
   ruleCode _ = "V002"
-  checkArch _ arch
-    | hasCycle (archLayers arch) =
-        [ Diagnostic Error "V002"
-            "layer dependency graph contains a cycle"
-            (archName arch) Nothing
-        ]
-    | otherwise = []
+  checkArch _ arch = case layerCycles (archLayers arch) of
+    [] -> []
+    cs -> [ Diagnostic Error "V002"
+              ("layer dependency cycle: " <> T.intercalate " → " c)
+              (archName arch) Nothing
+          | c <- cs
+          ]
 
--- | DFS による循環検出
-hasCycle :: [LayerDef] -> Bool
-hasCycle layers = any (\n -> not (n `Set.member` done) && hasCycleFrom n) names
+-- | SCC による循環検出。O(V+E)。
+layerCycles :: [LayerDef] -> [[Text]]
+layerCycles layers =
+    [ ns | CyclicSCC ns <- stronglyConnComp graph ]
   where
-    depMap = Map.fromList [(layerName l, layerDeps l) | l <- layers]
-    names  = map layerName layers
-
-    -- 全ノードを走査した後の visited 集合を事前計算せず、各ノードから DFS
-    hasCycleFrom start = go Set.empty start
-    go visiting n
-      | n `Set.member` visiting = True   -- back edge → cycle
-      | n `Set.member` done     = False  -- already fully explored
-      | otherwise =
-          let visiting' = Set.insert n visiting
-              deps = Map.findWithDefault [] n depMap
-          in  any (go visiting') deps
-
-    -- 非循環なノードを事前収集（葉から確定）
-    done = converge Set.empty
-    converge prev =
-      let next = Set.fromList
-            [ n | n <- names
-            , all (\d -> d `Set.member` prev || d `notElem` names)
-                  (Map.findWithDefault [] n depMap)
-            ] `Set.union` prev
-      in if next == prev then prev else converge next
+    graph = [ (layerName l, layerName l, layerDeps l) | l <- layers ]
 
 ----------------------------------------------------------------------
 -- V003: needs に adapter 指定

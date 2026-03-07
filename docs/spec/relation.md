@@ -61,7 +61,11 @@ reachable :: Text -> Architecture -> Set Text
 -- 全関係種に沿った到達可能ノード
 
 isAcyclic :: [Text] -> Architecture -> Bool
--- 指定した関係種のグラフに循環がないか
+-- 指定した関係種のグラフに循環がないか (SCC ベース、O(V+E))
+
+cyclicGroups :: [Text] -> Architecture -> [[Text]]
+-- 指定した関係種のグラフに含まれるサイクル群を返す (SCC ベース、O(V+E))
+-- 各要素は強連結成分を構成するノード名のリスト
 
 typeRefs :: TypeExpr -> [Text]
 -- TypeExpr から TRef 名を再帰的に抽出 (TExt は除外)
@@ -75,6 +79,10 @@ transitive ["needs"] "PlaceOrder" architecture
 -- needs グラフに循環がないことを検査
 isAcyclic ["needs"] architecture
 -- → True
+
+-- サイクルが存在する場合、各サイクルの構成ノードを取得
+cyclicGroups ["dep"] architecture
+-- → [["A", "B"]]  (A → B → A のサイクル)
 ```
 
 ## Manifest との関係
