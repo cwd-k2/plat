@@ -40,11 +40,19 @@ pub fn render(findings: &[Finding], summary: &Summary, name: &str, language: &st
     ));
 
     let c = &summary.convergence;
+    let fields_str = if c.fields_partial > 0 {
+        format!("{}+{}/{}", c.fields_found, c.fields_partial, c.fields_expected)
+    } else {
+        format!("{}/{}", c.fields_found, c.fields_expected)
+    };
+    let methods_str = if c.methods_partial > 0 {
+        format!("{}+{}/{}", c.methods_found, c.methods_partial, c.methods_expected)
+    } else {
+        format!("{}/{}", c.methods_found, c.methods_expected)
+    };
     out.push_str(&format!(
-        "  convergence:  types {}/{}, fields {}/{}, methods {}/{}\n",
-        c.types_found, c.types_expected,
-        c.fields_found, c.fields_expected,
-        c.methods_found, c.methods_expected,
+        "  convergence:  types {}/{}, fields {}, methods {}\n",
+        c.types_found, c.types_expected, fields_str, methods_str,
     ));
     out.push_str(&format!(
         "  health score: {:.0}%\n",

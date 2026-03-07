@@ -107,10 +107,14 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
         if decl.kind == DeclKind::Adapter && td.kind == TypeDefKind::Struct {
             for inject in &decl.injects {
                 let field_name = config.convert_field_name(&inject.name);
-                // Try converted name, raw name, and camelCase (Go unexported fields)
                 let camel = plat_manifest::naming::convert(&inject.name, plat_manifest::Case::Camel);
-                let found = td.fields.iter().any(|(n, _)| {
-                    *n == field_name || *n == inject.name || *n == camel
+                let resolved_type = typemap::resolve(&inject.typ, lang, &default_map, &config.types);
+                // Try: name match (converted, raw, camelCase) OR type match
+                let found = td.fields.iter().any(|(n, t)| {
+                    *n == field_name
+                        || *n == inject.name
+                        || *n == camel
+                        || types_match(t, &resolved_type)
                 });
                 if !found {
                     findings.push(Finding {
@@ -118,7 +122,7 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
                         severity: Severity::Warning,
                         declaration: decl.name.clone(),
                         message: format!("missing injected dependency \"{}\"", inject.name),
-                        expected: Some(inject.typ.clone()),
+                        expected: Some(format!("{} ({})", inject.name, inject.typ)),
                         source_file: Some(td.file.display().to_string()),
                         source_line: None,
                     });
@@ -158,26 +162,9 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
 
 /// Lenient type comparison: strips pointer prefix, package qualifier, and slice/array wrappers.
 fn types_match(source: &str, expected: &str) -> bool {
-    let s = normalize_type(source);
-    let e = normalize_type(expected);
+    let s = super::normalize_type(source);
+    let e = super::normalize_type(expected);
     s == e
-}
-
-/// Normalize a type string for comparison: strip pointer, package qualifier.
-fn normalize_type(t: &str) -> String {
-    let t = t.trim();
-    // Strip pointer prefix
-    let t = t.trim_start_matches('*');
-    // Strip package qualifier (keep only the type name after last dot)
-    // But preserve slice/map prefixes
-    if let Some(pos) = t.rfind('.') {
-        // Check if this is inside generics or a qualified name
-        let before = &t[..pos];
-        if !before.contains('[') && !before.contains('<') {
-            return t[pos + 1..].to_string();
-        }
-    }
-    t.to_string()
 }
 
 /// Check if a source type string contains a declaration name.

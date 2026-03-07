@@ -36,25 +36,38 @@ pub struct Summary {
 }
 
 /// Convergence counters — confirmed alignments between manifest and source.
+///
+/// Each element has three states:
+/// - Full match (1.0): name and type/signature match
+/// - Partial match (0.5): name matches but type/signature differs
+/// - Missing (0.0): not found at all
 #[derive(Debug, Default, Clone)]
 pub struct Convergence {
     pub types_expected: usize,
     pub types_found: usize,
     pub fields_expected: usize,
     pub fields_found: usize,
+    pub fields_partial: usize,
     pub methods_expected: usize,
     pub methods_found: usize,
+    pub methods_partial: usize,
 }
 
 impl Convergence {
-    /// Architecture health score: ratio of confirmed elements to total expected.
+    /// Architecture health score: weighted ratio of confirmed elements.
+    ///
+    /// Full matches count 1.0, partial matches count 0.5.
     pub fn health_score(&self) -> f64 {
         let total = self.types_expected + self.fields_expected + self.methods_expected;
         if total == 0 {
             return 1.0;
         }
-        let found = self.types_found + self.fields_found + self.methods_found;
-        found as f64 / total as f64
+        let score = self.types_found as f64
+            + self.fields_found as f64
+            + self.fields_partial as f64 * 0.5
+            + self.methods_found as f64
+            + self.methods_partial as f64 * 0.5;
+        score / total as f64
     }
 }
 
@@ -107,12 +120,21 @@ pub fn compute_convergence(
         if let Some(td) = td {
             conv.types_found += 1;
 
+            let default_map = plat_manifest::typemap::defaults(config.source.language);
+
             // Field convergence (Model / Adapter)
             for field in &decl.fields {
                 conv.fields_expected += 1;
                 let src_name = config.convert_field_name(&field.name);
-                if td.fields.iter().any(|(n, _)| *n == src_name) {
-                    conv.fields_found += 1;
+                if let Some((_, src_type)) = td.fields.iter().find(|(n, _)| *n == src_name) {
+                    let expected_type = plat_manifest::typemap::resolve(
+                        &field.typ, config.source.language, &default_map, &config.types,
+                    );
+                    if normalize_type(src_type) == normalize_type(&expected_type) {
+                        conv.fields_found += 1;
+                    } else {
+                        conv.fields_partial += 1; // name match, type mismatch
+                    }
                 }
             }
 
@@ -120,17 +142,31 @@ pub fn compute_convergence(
             for op in &decl.ops {
                 conv.methods_expected += 1;
                 let src_name = config.convert_method_name(&op.name);
-                if td.methods.iter().any(|m| m.name == src_name) {
-                    conv.methods_found += 1;
+                if let Some(method) = td.methods.iter().find(|m| m.name == src_name) {
+                    // Check parameter count as a proxy for signature match
+                    let manifest_params = op.inputs.iter()
+                        .filter(|p| !plat_manifest::typemap::is_error_type(&p.typ))
+                        .count();
+                    if manifest_params == method.params.len() {
+                        conv.methods_found += 1;
+                    } else {
+                        conv.methods_partial += 1;
+                    }
                 }
             }
 
-            // Inject convergence (Adapter): try converted, raw, and camelCase names
+            // Inject convergence (Adapter): try name match or type match
             for inject in &decl.injects {
                 conv.fields_expected += 1;
                 let src_name = config.convert_field_name(&inject.name);
                 let camel = plat_manifest::naming::convert(&inject.name, plat_manifest::Case::Camel);
-                if td.fields.iter().any(|(n, _)| *n == src_name || *n == inject.name || *n == camel) {
+                let resolved_type = plat_manifest::typemap::resolve(
+                    &inject.typ, config.source.language, &default_map, &config.types,
+                );
+                if td.fields.iter().any(|(n, t)| {
+                    *n == src_name || *n == inject.name || *n == camel
+                        || normalize_type(t) == normalize_type(&resolved_type)
+                }) {
                     conv.fields_found += 1;
                 }
             }
@@ -138,6 +174,18 @@ pub fn compute_convergence(
     }
 
     conv
+}
+
+/// Normalize a type string for comparison: strip pointer, package qualifier.
+pub(crate) fn normalize_type(t: &str) -> String {
+    let t = t.trim().trim_start_matches('*');
+    if let Some(pos) = t.rfind('.') {
+        let before = &t[..pos];
+        if !before.contains('[') && !before.contains('<') {
+            return t[pos + 1..].to_string();
+        }
+    }
+    t.to_string()
 }
 
 /// Find a type by name across all facts, with Go package-prefix fallback.
