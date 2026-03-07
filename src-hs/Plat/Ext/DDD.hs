@@ -1,8 +1,8 @@
--- | DDD extension: value, aggregate, enum_, invariant
+-- | DDD extension: value, aggregate, enum, invariant
 module Plat.Ext.DDD
   ( value
   , aggregate
-  , enum_
+  , enum
   , invariant
   , dddRules
   -- * Helpers
@@ -48,8 +48,8 @@ aggregate name ly body = model name ly $ do
   body
 
 -- | Enum (variants as metadata)
-enum_ :: Text -> LayerDef -> [Text] -> Decl 'Model
-enum_ name ly variants = model name ly $ do
+enum :: Text -> LayerDef -> [Text] -> Decl 'Model
+enum name ly variants = model name ly $ do
   tagAs dddEnum
   forM_ variants $ \v -> annotate ddd "variant" v v
 

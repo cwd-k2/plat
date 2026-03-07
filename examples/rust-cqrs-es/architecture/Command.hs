@@ -64,10 +64,11 @@ unfreezeAccount = command "UnfreezeAccount" app $ do
   emit accountUnfrozen
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare openAccount
-  declare depositMoney
-  declare withdrawMoney
-  declare closeAccount
-  declare freezeAccount
-  declare unfreezeAccount
+declareAll = declares
+  [ decl openAccount
+  , decl depositMoney
+  , decl withdrawMoney
+  , decl closeAccount
+  , decl freezeAccount
+  , decl unfreezeAccount
+  ]

@@ -16,7 +16,7 @@ customer = aggregate "Customer" enterprise $ do
   field "createdAt" dateTime
 
 customerStatus :: Decl 'Model
-customerStatus = enum_ "CustomerStatus" enterprise
+customerStatus = enum "CustomerStatus" enterprise
   ["Active", "Suspended", "Deleted"]
 
 customerRepo :: Decl 'Boundary
@@ -47,15 +47,16 @@ updateCustomerAddress = usecase "UpdateCustomerAddress" application $ do
   needs customerRepo
 
 pgCustomerRepo :: Decl 'Adapter
-pgCustomerRepo = impl_ "PostgresCustomerRepo" framework customerRepo $ do
+pgCustomerRepo = impl "PostgresCustomerRepo" framework customerRepo $ do
   inject "db" (ext "*sql.DB")
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare customer
-  declare customerStatus
-  declare customerRepo
-  declare createCustomer
-  declare getCustomer
-  declare updateCustomerAddress
-  declare pgCustomerRepo
+declareAll = declares
+  [ decl customer
+  , decl customerStatus
+  , decl customerRepo
+  , decl createCustomer
+  , decl getCustomer
+  , decl updateCustomerAddress
+  , decl pgCustomerRepo
+  ]

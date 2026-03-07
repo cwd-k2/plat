@@ -89,13 +89,13 @@ account = aggregate "Account" dom $ do
   field "balance" (ref money)
   field "status"  string
   invariant "nonNegativeBalance" "balance.amount >= 0"
-  apply_ accountOpened
-  apply_ moneyDeposited
-  apply_ moneyWithdrawn
-  apply_ accountClosed
-  apply_ accountFrozen
-  apply_ accountUnfrozen
-  apply_ interestAccrued
+  apply accountOpened
+  apply moneyDeposited
+  apply moneyWithdrawn
+  apply accountClosed
+  apply accountFrozen
+  apply accountUnfrozen
+  apply interestAccrued
 
 ----------------------------------------------------------------------
 -- Value Objects (Statements)
@@ -115,7 +115,7 @@ statement = value "Statement" dom $ do
   field "periodEnd"      dateTime
   field "openingBalance" (ref money)
   field "closingBalance" (ref money)
-  field "entries"        (list (ref statementEntry))
+  field "entries"        (listOf statementEntry)
 
 ----------------------------------------------------------------------
 -- Policies
@@ -131,18 +131,19 @@ withdrawalPolicy = policy "WithdrawalPolicy" dom $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare money
-  declare accountId
-  declare account
-  declare withdrawalPolicy
-  declare statementEntry
-  declare statement
-  declare accountOpened
-  declare moneyDeposited
-  declare moneyWithdrawn
-  declare transferCompleted
-  declare accountClosed
-  declare accountFrozen
-  declare accountUnfrozen
-  declare interestAccrued
+declareAll = declares
+  [ decl money
+  , decl accountId
+  , decl account
+  , decl withdrawalPolicy
+  , decl statementEntry
+  , decl statement
+  , decl accountOpened
+  , decl moneyDeposited
+  , decl moneyWithdrawn
+  , decl transferCompleted
+  , decl accountClosed
+  , decl accountFrozen
+  , decl accountUnfrozen
+  , decl interestAccrued
+  ]

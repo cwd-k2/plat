@@ -24,8 +24,8 @@ productRepo :: Decl 'Boundary
 productRepo = port "ProductRepository" interface $ do
   op "save"     ["product" .: ref product_] ["err" .: error_]
   op "findById" ["id" .: customType "UUID"] ["product" .: ref product_, "err" .: error_]
-  op "findAll"  [] ["products" .: list (ref product_), "err" .: error_]
-  op "search"   ["query" .: string] ["products" .: list (ref product_), "err" .: error_]
+  op "findAll"  [] ["products" .: listOf product_, "err" .: error_]
+  op "search"   ["query" .: string] ["products" .: listOf product_, "err" .: error_]
   op "delete"   ["id" .: customType "UUID"] ["err" .: error_]
 
 inventoryChecker :: Decl 'Boundary
@@ -48,26 +48,27 @@ getProduct = usecase "GetProduct" application $ do
 searchProducts :: Decl 'Operation
 searchProducts = usecase "SearchProducts" application $ do
   input  "query"    string
-  output "products" (list (ref product_))
+  output "products" (listOf product_)
   output "err"      error_
   needs productRepo
 
 pgProductRepo :: Decl 'Adapter
-pgProductRepo = impl_ "PostgresProductRepo" framework productRepo $ do
+pgProductRepo = impl "PostgresProductRepo" framework productRepo $ do
   inject "db" (ext "*sql.DB")
 
 stubInventory :: Decl 'Adapter
-stubInventory = impl_ "StubInventory" framework inventoryChecker $ do
+stubInventory = impl "StubInventory" framework inventoryChecker $ do
   inject "db" (ext "*sql.DB")
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare product_
-  declare category
-  declare productRepo
-  declare inventoryChecker
-  declare createProduct
-  declare getProduct
-  declare searchProducts
-  declare pgProductRepo
-  declare stubInventory
+declareAll = declares
+  [ decl product_
+  , decl category
+  , decl productRepo
+  , decl inventoryChecker
+  , decl createProduct
+  , decl getProduct
+  , decl searchProducts
+  , decl pgProductRepo
+  , decl stubInventory
+  ]

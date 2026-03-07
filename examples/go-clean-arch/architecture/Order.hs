@@ -15,14 +15,14 @@ import Shared (money, address)
 import Payment (paymentGateway)
 
 orderStatus :: Decl 'Model
-orderStatus = enum_ "OrderStatus" enterprise
+orderStatus = enum "OrderStatus" enterprise
   ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"]
 
 order :: Decl 'Model
 order = aggregate "Order" enterprise $ do
   field "id"        (customType "UUID")
   field "customer"  string
-  field "items"     (list (ref orderItem))
+  field "items"     (listOf orderItem)
   field "total"     (ref money)
   field "shipping"  (ref address)
   field "status"    (ref orderStatus)
@@ -39,7 +39,7 @@ orderRepo :: Decl 'Boundary
 orderRepo = port "OrderRepository" interface $ do
   op "save"      ["order" .: ref order] ["err" .: error_]
   op "findById"  ["id" .: customType "UUID"] ["order" .: ref order, "err" .: error_]
-  op "findAll"   [] ["orders" .: list (ref order), "err" .: error_]
+  op "findAll"   [] ["orders" .: listOf order, "err" .: error_]
   op "delete"    ["id" .: customType "UUID"] ["err" .: error_]
 
 notifier :: Decl 'Boundary
@@ -72,16 +72,16 @@ getOrder = usecase "GetOrder" application $ do
 
 listOrders :: Decl 'Operation
 listOrders = usecase "ListOrders" application $ do
-  output "orders" (list (ref order))
+  output "orders" (listOf order)
   output "err"    error_
   needs orderRepo
 
 pgOrderRepo :: Decl 'Adapter
-pgOrderRepo = impl_ "PostgresOrderRepo" framework orderRepo $ do
+pgOrderRepo = impl "PostgresOrderRepo" framework orderRepo $ do
   inject "db" (ext "*sql.DB")
 
 emailNotifier :: Decl 'Adapter
-emailNotifier = impl_ "EmailNotifier" framework notifier $ do
+emailNotifier = impl "EmailNotifier" framework notifier $ do
   inject "mailer" (ext "smtp.Sender")
 
 orderController :: Decl 'Adapter
@@ -92,16 +92,17 @@ orderController = Http.controller "OrderController" framework $ do
   Http.route Http.DELETE "/orders/:id" cancelOrder
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare orderStatus
-  declare order
-  declare orderItem
-  declare orderRepo
-  declare notifier
-  declare placeOrder
-  declare cancelOrder
-  declare getOrder
-  declare listOrders
-  declare pgOrderRepo
-  declare emailNotifier
-  declare orderController
+declareAll = declares
+  [ decl orderStatus
+  , decl order
+  , decl orderItem
+  , decl orderRepo
+  , decl notifier
+  , decl placeOrder
+  , decl cancelOrder
+  , decl getOrder
+  , decl listOrders
+  , decl pgOrderRepo
+  , decl emailNotifier
+  , decl orderController
+  ]

@@ -20,11 +20,8 @@ paymentGateway = port "PaymentGateway" interface $ do
   op "refund" ["txId" .: string] ["err" .: error_]
 
 stripePayment :: Decl 'Adapter
-stripePayment = impl_ "StripePayment" framework paymentGateway $ do
+stripePayment = impl "StripePayment" framework paymentGateway $ do
   inject "client" (ext "*stripe.Client")
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare paymentRecord
-  declare paymentGateway
-  declare stripePayment
+declareAll = declares [decl paymentRecord, decl paymentGateway, decl stripePayment]

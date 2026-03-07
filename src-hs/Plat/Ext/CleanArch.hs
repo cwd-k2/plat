@@ -11,7 +11,7 @@ module Plat.Ext.CleanArch
   , entity
   , usecase
   , port
-  , impl_
+  , impl
   , wire
 
     -- * Meta vocabulary
@@ -84,8 +84,8 @@ port name ly body = boundary name ly $ do
   body
 
 -- | Implementation (adapter with implements)
-impl_ :: Text -> LayerDef -> Decl 'Boundary -> DeclWriter 'Adapter () -> Decl 'Adapter
-impl_ name ly bnd body = adapter name ly $ do
+impl :: Text -> LayerDef -> Decl 'Boundary -> DeclWriter 'Adapter () -> Decl 'Adapter
+impl name ly bnd body = adapter name ly $ do
   tagAs caImpl
   implements bnd
   body

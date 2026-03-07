@@ -18,10 +18,11 @@ eventStore = boundary "EventStore" dom $ do
 statementStore :: Decl 'Boundary
 statementStore = boundary "StatementStore" dom $ do
   op "save"          ["statement" .: ref statement]   ["err" .: error_]
-  op "findByAccount" ["accountId" .: ref accountId]   ["statements" .: list (ref statement), "err" .: error_]
+  op "findByAccount" ["accountId" .: ref accountId]   ["statements" .: listOf statement, "err" .: error_]
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare accountRepo
-  declare eventStore
-  declare statementStore
+declareAll = declares
+  [ decl accountRepo
+  , decl eventStore
+  , decl statementStore
+  ]

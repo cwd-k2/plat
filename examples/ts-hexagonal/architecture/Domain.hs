@@ -13,14 +13,14 @@ module Domain
   ) where
 
 import Plat.Core
-import Plat.Ext.DDD (enum_)
+import Plat.Ext.DDD (enum)
 import Layers   (dom)
 
 channel :: Decl 'Model
-channel = enum_ "Channel" dom ["Email", "SMS", "Push", "Slack"]
+channel = enum "Channel" dom ["Email", "SMS", "Push", "Slack"]
 
 priority :: Decl 'Model
-priority = enum_ "Priority" dom ["Low", "Normal", "High", "Critical"]
+priority = enum "Priority" dom ["Low", "Normal", "High", "Critical"]
 
 recipient :: Decl 'Model
 recipient = model "Recipient" dom $ do
@@ -51,7 +51,7 @@ notification = model "Notification" dom $ do
   field "status"     string
 
 scheduleStatus :: Decl 'Model
-scheduleStatus = enum_ "ScheduleStatus" dom ["Pending", "Executed", "Cancelled", "Failed"]
+scheduleStatus = enum "ScheduleStatus" dom ["Pending", "Executed", "Cancelled", "Failed"]
 
 schedule :: Decl 'Model
 schedule = model "Schedule" dom $ do
@@ -73,7 +73,7 @@ userPreference = model "UserPreference" dom $ do
   field "quietEnd"         (nullable string)
 
 deliveryStatus :: Decl 'Model
-deliveryStatus = enum_ "DeliveryStatus" dom ["Pending", "Delivered", "Failed", "Bounced"]
+deliveryStatus = enum "DeliveryStatus" dom ["Pending", "Delivered", "Failed", "Bounced"]
 
 deliveryReport :: Decl 'Model
 deliveryReport = model "DeliveryReport" dom $ do
@@ -85,14 +85,15 @@ deliveryReport = model "DeliveryReport" dom $ do
   field "errorMessage"   (nullable string)
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare channel
-  declare priority
-  declare recipient
-  declare template
-  declare notification
-  declare scheduleStatus
-  declare schedule
-  declare userPreference
-  declare deliveryStatus
-  declare deliveryReport
+declareAll = declares
+  [ decl channel
+  , decl priority
+  , decl recipient
+  , decl template
+  , decl notification
+  , decl scheduleStatus
+  , decl schedule
+  , decl userPreference
+  , decl deliveryStatus
+  , decl deliveryReport
+  ]

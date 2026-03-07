@@ -29,6 +29,11 @@ module Plat.Core.TypeExpr
   , alias
   , Referenceable
 
+    -- * Reference combinators
+  , listOf
+  , optionOf
+  , setOf
+
     -- * External / custom types
   , ext
   , customType
@@ -144,6 +149,20 @@ idOf (Decl d) = TGeneric "Id" [TRef (declName d)]
 -- | TypeAlias への型参照
 alias :: TypeAlias -> TypeExpr
 alias ta = TRef (aliasName ta)
+
+-- Reference combinators
+
+-- | 宣言のリスト型。@listOf x = list (ref x)@
+listOf :: Referenceable k => Decl k -> TypeExpr
+listOf = list . ref
+
+-- | 宣言の省略可能型。@optionOf x = option (ref x)@
+optionOf :: Referenceable k => Decl k -> TypeExpr
+optionOf = option . ref
+
+-- | 宣言の集合型。@setOf x = set (ref x)@
+setOf :: Referenceable k => Decl k -> TypeExpr
+setOf = set . ref
 
 -- External / custom types
 

@@ -39,12 +39,12 @@ productRepo :: Decl 'Boundary
 productRepo = port "ProductRepository" interface $ do
   op "save"     ["product" .: ref product_] ["err" .: error_]
   op "findById" ["id" .: customType "UUID"] ["product" .: ref product_, "err" .: error_]
-  op "findAll"  [] ["products" .: list (ref product_), "err" .: error_]
+  op "findAll"  [] ["products" .: listOf product_, "err" .: error_]
   op "delete"   ["id" .: customType "UUID"] ["err" .: error_]
 
 productSearch :: Decl 'Boundary
 productSearch = port "ProductSearch" interface $ do
-  op "search" ["query" .: string] ["products" .: list (ref product_), "err" .: error_]
+  op "search" ["query" .: string] ["products" .: listOf product_, "err" .: error_]
 
 -- Use cases
 
@@ -65,18 +65,18 @@ getProduct = usecase "GetProduct" application $ do
 searchProducts :: Decl 'Operation
 searchProducts = usecase "SearchProducts" application $ do
   input  "query"    string
-  output "products" (list (ref product_))
+  output "products" (listOf product_)
   output "err"      error_
   needs productSearch
 
 -- Adapters
 
 memProductRepo :: Decl 'Adapter
-memProductRepo = impl_ "InMemoryProductRepo" framework productRepo $ do
+memProductRepo = impl "InMemoryProductRepo" framework productRepo $ do
   inject "store" (ext "sync.Map")
 
 memProductSearch :: Decl 'Adapter
-memProductSearch = impl_ "InMemoryProductSearch" framework productSearch $ do
+memProductSearch = impl "InMemoryProductSearch" framework productSearch $ do
   inject "store" (ext "sync.Map")
 
 -- Module
@@ -94,14 +94,15 @@ catalogModule = domain "CatalogFeature" $ do
   expose memProductSearch
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare category
-  declare product_
-  declare productRepo
-  declare productSearch
-  declare createProduct
-  declare getProduct
-  declare searchProducts
-  declare memProductRepo
-  declare memProductSearch
-  declare catalogModule
+declareAll = declares
+  [ decl category
+  , decl product_
+  , decl productRepo
+  , decl productSearch
+  , decl createProduct
+  , decl getProduct
+  , decl searchProducts
+  , decl memProductRepo
+  , decl memProductSearch
+  , decl catalogModule
+  ]

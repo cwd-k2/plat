@@ -142,6 +142,9 @@ module Plat.Core
   , idOf
   , alias
   , Referenceable
+  , listOf
+  , optionOf
+  , setOf
   , ext
   , customType
   , error_

@@ -6,7 +6,7 @@ import Plat.Generate.Mermaid (renderMermaid)
 import Plat.Generate.Markdown (renderMarkdown)
 import Plat.Ext.DDD
 import Plat.Ext.CQRS
-import Plat.Ext.CleanArch (cleanArchLayers, enterprise, framework, entity, port, impl_)
+import Plat.Ext.CleanArch (cleanArchLayers, enterprise, framework, entity, port, impl)
 import qualified Plat.Ext.CleanArch as CA
 import Plat.Ext.Http
 import Plat.Ext.DBC
@@ -56,7 +56,7 @@ order = model "Order" core $ do
   path "domain/order.go"
   field "id"         uuid
   field "customerId" uuid
-  field "items"      (list (ref orderItem))
+  field "items"      (listOf orderItem)
   field "status"     (ref orderStatus)
   field "total"      (alias money)
   field "createdAt"  dateTime
@@ -82,7 +82,7 @@ placeOrder :: Decl 'Operation
 placeOrder = operation "PlaceOrder" application $ do
   path "usecase/place_order.go"
   input  "customerId" uuid
-  input  "items"      (list (ref orderItem))
+  input  "items"      (listOf orderItem)
   output "order"      (ref order)
   output "err"        error_
   needs orderRepo
@@ -167,7 +167,7 @@ dddOrderNoId = aggregate "OrderNoId" core $
   field "status" string  -- DDD-V002: aggregate without id
 
 dddStatus :: Decl 'Model
-dddStatus = enum_ "OrderStatus" core
+dddStatus = enum "OrderStatus" core
   ["draft", "placed", "paid", "shipped"]
 
 ----------------------------------------------------------------------
@@ -200,7 +200,7 @@ caPort = port "ProductRepository" CA.interface $ do
   op "save" ["p" .: ref caEntity] ["err" .: error_]
 
 caImpl :: Decl 'Adapter
-caImpl = impl_ "PostgresProductRepo" framework caPort $
+caImpl = impl "PostgresProductRepo" framework caPort $
   inject "db" (ext "*sql.DB")
 
 ----------------------------------------------------------------------
@@ -537,8 +537,8 @@ testEvents = do
       orderAgg = model "OrderAggregate" core $ do
         field "id" uuid
         field "status" string
-        apply_ orderPlaced
-        apply_ orderShipped
+        apply orderPlaced
+        apply orderShipped
 
       evtD  = decl orderPlaced
       opD   = decl placeOrderWithEvent
@@ -794,7 +794,7 @@ testRelations = do
     , ("isAcyclic: needs is acyclic",
         isAcyclic ["needs"] relArch)
     , ("typeRefs extracts TRef",
-        typeRefs (list (ref order)) == ["Order"])
+        typeRefs (listOf order) == ["Order"])
     , ("typeRefs extracts nullable",
         typeRefs (nullable (ref order)) == ["Order"])
     , ("manifest has explicit relations",

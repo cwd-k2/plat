@@ -27,12 +27,12 @@ notificationSender = boundary "NotificationSender" port_ $ do
 templateStore :: Decl 'Boundary
 templateStore = boundary "TemplateStore" port_ $ do
   op "find"    ["id" .: string] ["template" .: ref template, "err" .: error_]
-  op "findAll" [] ["templates" .: list (ref template), "err" .: error_]
+  op "findAll" [] ["templates" .: listOf template, "err" .: error_]
 
 notificationLog :: Decl 'Boundary
 notificationLog = boundary "NotificationLog" port_ $ do
   op "record"  ["notification" .: ref notification] ["err" .: error_]
-  op "history" ["recipientId" .: string] ["notifications" .: list (ref notification), "err" .: error_]
+  op "history" ["recipientId" .: string] ["notifications" .: listOf notification, "err" .: error_]
 
 ----------------------------------------------------------------------
 -- Use cases
@@ -65,7 +65,7 @@ sendBulk = operation "SendBulkNotification" app $ do
 getHistory :: Decl 'Operation
 getHistory = operation "GetNotificationHistory" app $ do
   input  "recipientId" string
-  output "notifications" (list (ref notification))
+  output "notifications" (listOf notification)
   output "err"         error_
   needs notificationLog
 
@@ -98,17 +98,15 @@ mongoNotificationLog = adapter "MongoNotificationLog" adp $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  -- Ports
-  declare notificationSender
-  declare templateStore
-  declare notificationLog
-  -- Use cases
-  declare sendNotification
-  declare sendBulk
-  declare getHistory
-  -- Adapters
-  declare emailSender
-  declare smsSender
-  declare mongoTemplateStore
-  declare mongoNotificationLog
+declareAll = declares
+  [ decl notificationSender
+  , decl templateStore
+  , decl notificationLog
+  , decl sendNotification
+  , decl sendBulk
+  , decl getHistory
+  , decl emailSender
+  , decl smsSender
+  , decl mongoTemplateStore
+  , decl mongoNotificationLog
+  ]

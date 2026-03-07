@@ -60,7 +60,7 @@ ExtId: `ddd` / Tags: `dddValue`, `dddAggregate`, `dddEnum`
 |-------------|------|--------------|
 | `value` | `model` | `tagAs dddValue` |
 | `aggregate` | `model` | `tagAs dddAggregate` |
-| `enum_` | `model` | `tagAs dddEnum` + `annotate ddd "variant"` |
+| `enum` | `model` | `tagAs dddEnum` + `annotate ddd "variant"` |
 | `invariant` | (combinator) | `annotate ddd "invariant" name expr` |
 
 Rules: DDD-V001 (value no id), DDD-V002 (aggregate should have id)
@@ -87,7 +87,7 @@ Preset layers: `enterprise`, `application`, `interface`, `framework` (+ `cleanAr
 | `entity` | `model` | `tagAs caEntity` |
 | `usecase` | `operation` | `tagAs caUsecase` |
 | `port` | `boundary` | `tagAs caPort` |
-| `impl_` | `adapter` + `implements` | `tagAs caImpl` |
+| `impl` | `adapter` + `implements` | `tagAs caImpl` |
 | `wire` | `compose` | `tagAs caWire` |
 
 ### Http (`Plat.Ext.Http`)
@@ -132,7 +132,7 @@ ExtId: `events` / Tags: `evtEvent`, `evtHandler`
 | `event` | `model` | `tagAs evtEvent` |
 | `emit` | `DeclWriter 'Operation` | `refer events "emit" decl` |
 | `on_` | `operation` | `tagAs evtHandler` + `attr events "on" eventName` |
-| `apply_` | `DeclWriter 'Model` | `refer events "apply" decl` |
+| `apply` | `DeclWriter 'Model` | `refer events "apply" decl` |
 
 ### Modules (`Plat.Ext.Modules`)
 

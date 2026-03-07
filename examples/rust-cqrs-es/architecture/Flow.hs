@@ -55,9 +55,10 @@ onInterestAccrued = on_ "OnInterestAccrued" interestAccrued app $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare transferMoney
-  declare onDeposited
-  declare onWithdrawn
-  declare onAccountClosed
-  declare onInterestAccrued
+declareAll = declares
+  [ decl transferMoney
+  , decl onDeposited
+  , decl onWithdrawn
+  , decl onAccountClosed
+  , decl onInterestAccrued
+  ]

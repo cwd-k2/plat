@@ -21,14 +21,14 @@ import Payment (paymentGateway, paymentModule)
 -- Domain
 
 orderStatus :: Decl 'Model
-orderStatus = enum_ "OrderStatus" enterprise
+orderStatus = enum "OrderStatus" enterprise
   ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"]
 
 order :: Decl 'Model
 order = aggregate "Order" enterprise $ do
   field "id"        (customType "UUID")
   field "customerId" (customType "UUID")
-  field "items"     (list (ref orderItem))
+  field "items"     (listOf orderItem)
   field "total"     (ref money)
   field "shipping"  (ref address)
   field "status"    (ref orderStatus)
@@ -47,7 +47,7 @@ orderRepo :: Decl 'Boundary
 orderRepo = port "OrderRepository" interface $ do
   op "save"     ["order" .: ref order] ["err" .: error_]
   op "findById" ["id" .: customType "UUID"] ["order" .: ref order, "err" .: error_]
-  op "findAll"  [] ["orders" .: list (ref order), "err" .: error_]
+  op "findAll"  [] ["orders" .: listOf order, "err" .: error_]
   op "delete"   ["id" .: customType "UUID"] ["err" .: error_]
 
 -- Use cases
@@ -76,14 +76,14 @@ getOrder = usecase "GetOrder" application $ do
 
 listOrders :: Decl 'Operation
 listOrders = usecase "ListOrders" application $ do
-  output "orders" (list (ref order))
+  output "orders" (listOf order)
   output "err"    error_
   needs orderRepo
 
 -- Adapter
 
 memOrderRepo :: Decl 'Adapter
-memOrderRepo = impl_ "InMemoryOrderRepo" framework orderRepo $ do
+memOrderRepo = impl "InMemoryOrderRepo" framework orderRepo $ do
   inject "store" (ext "sync.Map")
 
 -- Module
@@ -102,14 +102,15 @@ orderModule = domain "OrderFeature" $ do
   expose memOrderRepo
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare orderStatus
-  declare order
-  declare orderItem
-  declare orderRepo
-  declare placeOrder
-  declare cancelOrder
-  declare getOrder
-  declare listOrders
-  declare memOrderRepo
-  declare orderModule
+declareAll = declares
+  [ decl orderStatus
+  , decl order
+  , decl orderItem
+  , decl orderRepo
+  , decl placeOrder
+  , decl cancelOrder
+  , decl getOrder
+  , decl listOrders
+  , decl memOrderRepo
+  , decl orderModule
+  ]

@@ -1,9 +1,9 @@
--- | Events extension: event, emit, on_, apply_
+-- | Events extension: event, emit, on_, apply
 module Plat.Ext.Events
   ( event
   , emit
   , on_
-  , apply_
+  , apply
   , eventsRules
   -- * Meta vocabulary
   , events
@@ -45,8 +45,8 @@ on_ name evt ly body = operation name ly $ do
   body
 
 -- | Apply an event (model context, for aggregates)
-apply_ :: Decl 'Model -> DeclWriter 'Model ()
-apply_ = refer events "apply"
+apply :: Decl 'Model -> DeclWriter 'Model ()
+apply = refer events "apply"
 
 -- | Events 拡張の検証ルール一覧 (現在は空)
 eventsRules :: [SomeRule]

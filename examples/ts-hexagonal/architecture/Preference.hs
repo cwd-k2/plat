@@ -50,8 +50,9 @@ inMemoryPreferenceStore = adapter "InMemoryPreferenceStore" adp $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare preferenceStore
-  declare getPreferences
-  declare updatePreferences
-  declare inMemoryPreferenceStore
+declareAll = declares
+  [ decl preferenceStore
+  , decl getPreferences
+  , decl updatePreferences
+  , decl inMemoryPreferenceStore
+  ]

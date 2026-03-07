@@ -31,7 +31,7 @@ architecture = arch "order-service" $ do
   Customer.declareAll
   Catalog.declareAll
   Payment.declareAll
-  declare wiring
+  declares [decl wiring]
 
 wiring :: Decl 'Compose
 wiring = wire "OrderServiceWiring" $ do

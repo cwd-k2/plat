@@ -42,7 +42,8 @@ consoleDeliveryTracker = adapter "ConsoleDeliveryTracker" adp $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare deliveryTracker
-  declare getDeliveryReport
-  declare consoleDeliveryTracker
+declareAll = declares
+  [ decl deliveryTracker
+  , decl getDeliveryReport
+  , decl consoleDeliveryTracker
+  ]

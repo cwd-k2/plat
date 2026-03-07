@@ -20,7 +20,7 @@ import Shared (money)
 -- Domain
 
 paymentStatus :: Decl 'Model
-paymentStatus = enum_ "PaymentStatus" enterprise
+paymentStatus = enum "PaymentStatus" enterprise
   ["Pending", "Completed", "Failed", "Refunded"]
 
 payment :: Decl 'Model
@@ -65,11 +65,11 @@ getPayment = usecase "GetPayment" application $ do
 -- Adapters
 
 memPaymentRepo :: Decl 'Adapter
-memPaymentRepo = impl_ "InMemoryPaymentRepo" framework paymentRepo $ do
+memPaymentRepo = impl "InMemoryPaymentRepo" framework paymentRepo $ do
   inject "store" (ext "sync.Map")
 
 stubPaymentGateway :: Decl 'Adapter
-stubPaymentGateway = impl_ "StubPaymentGateway" framework paymentGateway $ do
+stubPaymentGateway = impl "StubPaymentGateway" framework paymentGateway $ do
   inject "logger" (ext "log.Logger")
 
 -- Module
@@ -86,13 +86,14 @@ paymentModule = domain "PaymentFeature" $ do
   expose stubPaymentGateway
 
 declareAll :: ArchBuilder ()
-declareAll = do
-  declare paymentStatus
-  declare payment
-  declare paymentGateway
-  declare paymentRepo
-  declare processPayment
-  declare getPayment
-  declare memPaymentRepo
-  declare stubPaymentGateway
-  declare paymentModule
+declareAll = declares
+  [ decl paymentStatus
+  , decl payment
+  , decl paymentGateway
+  , decl paymentRepo
+  , decl processPayment
+  , decl getPayment
+  , decl memPaymentRepo
+  , decl stubPaymentGateway
+  , decl paymentModule
+  ]

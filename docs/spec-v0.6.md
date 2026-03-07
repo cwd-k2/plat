@@ -543,7 +543,7 @@ alias :: TypeAlias -> TypeExpr
 ```haskell
 money        = "Money"        =: decimal
 emailAddress = "EmailAddress" =: string
-orderItems   = "OrderItems"   =: list (ref orderItem)
+orderItems   = "OrderItems"   =: listOf orderItem
 ```
 
 ### 7.3 モデル
@@ -566,7 +566,7 @@ order = model "Order" core $ do
   path "domain/order.go"
   field "id"         uuid
   field "customerId" uuid
-  field "items"      (list (ref orderItem))
+  field "items"      (listOf orderItem)
   field "status"     (ref orderStatus)
   field "total"      (alias money)
   field "createdAt"  dateTime
@@ -645,7 +645,7 @@ placeOrder :: Decl 'Operation
 placeOrder = operation "PlaceOrder" application $ do
   path "usecase/place_order.go"
   input  "customerId" uuid
-  input  "items"      (list (ref orderItem))
+  input  "items"      (listOf orderItem)
   input  "cardToken"  string
   output "order"      (ref order)
   output "err"        error_
@@ -661,7 +661,7 @@ placeOrder = operation "PlaceOrder" application $ do
 placeOrderInput :: Decl 'Model
 placeOrderInput = model "PlaceOrderInput" application $ do
   field "customerId" uuid
-  field "items"      (list (ref orderItem))
+  field "items"      (listOf orderItem)
   field "cardToken"  string
 
 placeOrder :: Decl 'Operation
@@ -833,6 +833,24 @@ instance Referenceable 'Operation
 
 `idOf` は `Decl 'Model` 専用であり、`TGeneric "Id" [TRef name]` を生成する。`Id` は予約ジェネリック型である（§8.5 参照）。
 
+#### 参照コンビネータ
+
+`list (ref x)` のような頻出パターンを簡潔に記述するためのコンビネータ。
+
+```haskell
+listOf   :: Referenceable k => Decl k -> TypeExpr   -- list . ref
+optionOf :: Referenceable k => Decl k -> TypeExpr   -- option . ref
+setOf    :: Referenceable k => Decl k -> TypeExpr   -- set . ref
+```
+
+```haskell
+-- 等価な記述
+field "items" (list (ref orderItem))   -- 基本形
+field "items" (listOf orderItem)       -- コンビネータ形
+```
+
+`ref` 自体は standalone 参照（`field "status" (ref orderStatus)`）で引き続き使用する。コンビネータはジェネリック型と参照の合成にのみ適用される。
+
 ### 8.4 外部型とカスタム型
 
 ```haskell
@@ -885,14 +903,13 @@ Haskell の予約語やよく使われる Prelude の名前と衝突する識別
 |------------|---------|------|
 | `error_` | `Prelude.error` | Error 型参照 |
 | `any_` | `Prelude.any` | Any ビルトイン型 |
-| `enum_` | (拡張) | DDD enum 宣言 |
 | `assert_` | (拡張) | DbC アサーション |
 | `view_` | (拡張) | HTTP view |
 | `import_` | `import` キーワード | Modules import |
-| `on_` | (拡張) | Events ハンドラ |
+| `on_` | `Data.Function.on` | Events ハンドラ |
 | `url_` | (慣習例) | URL カスタム型 |
 
-この規約は一貫して trailing underscore を使用する。leading underscore（`_error`）は Haskell で「未使用変数」の慣習があるため避ける。
+Trailing underscore は Prelude 関数・キーワードとの**実際の衝突がある場合のみ**使用する。衝突がない `enum`, `impl`, `apply` 等にはアンダースコアを付けない。leading underscore（`_error`）は Haskell で「未使用変数」の慣習があるため避ける。
 
 ### 8.7 利用例まとめ
 
@@ -901,7 +918,7 @@ field "name"      string                         -- ビルトイン
 field "age"       int                            -- ビルトイン
 field "id"        uuid                           -- カスタム型
 field "status"    (ref orderStatus)              -- model 参照
-field "items"     (list (ref orderItem))         -- ジェネリクス + 参照
+field "items"     (listOf orderItem)              -- 参照コンビネータ
 field "total"     (alias money)                  -- TypeAlias 参照
 field "metadata"  (mapType string any_)          -- any_
 field "parent"    (nullable (ref category))      -- nullable
@@ -1105,8 +1122,8 @@ aggregate name ly body = model name ly $ do
 invariant :: Text -> Text -> DeclWriter 'Model ()
 invariant name expr = meta ("plat-ddd:invariant:" <> name) expr
 
-enum_ :: Text -> LayerDef -> [Text] -> Decl 'Model
-enum_ name ly variants = model name ly $ do
+enum :: Text -> LayerDef -> [Text] -> Decl 'Model
+enum name ly variants = model name ly $ do
   meta "plat-ddd:kind" "enum"
   forM_ variants $ \v -> meta ("plat-ddd:variant:" <> v) v
 ```
@@ -1176,14 +1193,14 @@ myOrgRules = [SomeRule MyRule]
 
 | モジュール | 主な語彙 |
 |----------|---------|
-| `Plat.Ext.DDD` | `value`, `enum_`, `aggregate`, `invariant` |
+| `Plat.Ext.DDD` | `value`, `enum`, `aggregate`, `invariant` |
 | `Plat.Ext.DBC` | `pre`, `post`, `assert_`, `opWithContract` |
 | `Plat.Ext.Flow` | `step`, `policy`, `guard_` |
 | `Plat.Ext.Http` | `controller`, `route`, `presenter`, `view_` |
-| `Plat.Ext.Events` | `event`, `apply_`, `emit`, `on_` |
+| `Plat.Ext.Events` | `event`, `apply`, `emit`, `on_` |
 | `Plat.Ext.CQRS` | `command`, `query` |
 | `Plat.Ext.Modules` | `domain`, `expose`, `import_` |
-| `Plat.Ext.CleanArch` | `entity`, `usecase`, `port`, `impl_`, `wire` |
+| `Plat.Ext.CleanArch` | `entity`, `usecase`, `port`, `impl`, `wire` |
 
 ### 11.2 `Plat.Ext.DDD`
 
@@ -1198,13 +1215,13 @@ moneyValue = value "Money" core $ do
   invariant "nonNegative" "amount >= 0"
 
 orderStatus :: Decl 'Model
-orderStatus = enum_ "OrderStatus" core
+orderStatus = enum "OrderStatus" core
   ["draft", "placed", "paid", "shipped", "cancelled"]
 
 order :: Decl 'Model
 order = aggregate "Order" core $ do
   field "id"     uuid
-  field "items"  (list (ref orderItem))
+  field "items"  (listOf orderItem)
   field "status" (ref orderStatus)
   field "total"  (ref moneyValue)
 ```
@@ -1226,7 +1243,7 @@ query :: Text -> LayerDef -> DeclWriter 'Operation () -> Decl 'Operation
 placeOrderCmd :: Decl 'Operation
 placeOrderCmd = command "PlaceOrder" application $ do
   input  "customerId" uuid
-  input  "items"      (list (ref orderItem))
+  input  "items"      (listOf orderItem)
   output "order"      (ref order)
   output "err"        error_
   needs orderRepo
@@ -1625,7 +1642,7 @@ uuid :: TypeExpr
 uuid = customType "UUID"
 
 orderStatus :: Decl 'Model
-orderStatus = enum_ "OrderStatus" enterprise
+orderStatus = enum "OrderStatus" enterprise
   ["draft", "placed", "paid", "shipped", "cancelled"]
 
 money :: Decl 'Model
@@ -1645,7 +1662,7 @@ order = aggregate "Order" enterprise $ do
   path "domain/order.go"
   field "id"         uuid
   field "customerId" uuid
-  field "items"      (list (ref orderItem))
+  field "items"      (listOf orderItem)
   field "status"     (ref orderStatus)
   field "total"      (ref money)
   field "createdAt"  dateTime
@@ -1706,7 +1723,7 @@ placeOrder :: Decl 'Operation
 placeOrder = command "PlaceOrder" application $ do
   path "usecase/place_order.go"
   input  "customerId" uuid
-  input  "items"      (list (ref orderItem))
+  input  "items"      (listOf orderItem)
   input  "cardToken"  string
   output "order"      (ref order)
   output "err"        error_
