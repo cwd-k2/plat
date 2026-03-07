@@ -6,25 +6,28 @@ plat の内部構造と設計判断の詳細。
 
 ```
 Plat.Core              -- 公開 API re-export (ユーザーはここだけ import すればよい)
-Plat.Core.Types        -- AST: DeclKind, Declaration, Decl k, DeclItem, TypeExpr,
+Plat.Core.Types        -- AST: DeclKind, Declaration, Decl k, DeclItem, TypeExpr (TExt 含む),
                        --      ArchConstraint, Relation, Architecture
 Plat.Core.Builder      -- DeclWriter k, ArchBuilder (State モナド)
                        --   constrain, relate
-Plat.Core.TypeExpr     -- 型コンストラクタ: string, ref, ext, (.:)
+Plat.Core.TypeExpr     -- 型コンストラクタ: string, ref, ext (TExt), customType (TRef), (.:)
 Plat.Core.Meta         -- 拡張メタ DSL: ExtId, MetaTag, tagAs, annotate, refer, attr
 Plat.Core.Constraint   -- 制約述語: require, forbid, forAll, holds
+                       --   合成: both, allOf, oneOf, neg
 Plat.Core.Relation     -- 関係クエリ: relations, dependsOn, implementedBy, transitive, isAcyclic
-Plat.Core.Algebra      -- 代数操作: merge, mergeAll, project, projectLayer, projectKind, diff
+Plat.Core.Algebra      -- 代数操作: merge (Either), mergeAll, isCompatible, project, diff
 
 Plat.Check             -- check, checkWith, checkIO, prettyCheck
                        --   (archConstraints も自動評価)
 Plat.Check.Class       -- PlatRule type class, SomeRule (GADT), Diagnostic
-Plat.Check.Rules       -- V001-V009, W001-W003 の実装
+Plat.Check.Rules       -- V001-V009, W001-W004 の実装
+Plat.Check.Presets     -- 制約プリセット: operationNeedsBoundary, unwiredBoundaries, noNeedsCycle
 
 Plat.Generate.Mermaid  -- Mermaid flowchart 生成
 Plat.Generate.Markdown -- Markdown ドキュメント生成
 
 Plat.Ext.*             -- 拡張モジュール (DDD, CQRS, CleanArch, Http, DBC, Flow, Events, Modules)
+                       --   各拡張が {ext}Rules :: [SomeRule] をエクスポート
 
 Plat.Verify.Manifest   -- Architecture → JSON manifest
                        --   ManifestConstraint, ManifestRelation 含む
@@ -32,7 +35,7 @@ Plat.Verify.Manifest   -- Architecture → JSON manifest
 
 ## AST Design
 
-### DeclKind × DeclItem Matrix
+### DeclKind x DeclItem Matrix
 
 各 DeclKind で使用可能な DeclItem:
 
@@ -50,14 +53,13 @@ Plat.Verify.Manifest   -- Architecture → JSON manifest
 
 ```
 TBuiltin Builtin           -- String, Int, Float, Decimal, Bool, Unit, Bytes, DateTime, Any
-TRef Text                  -- 名前による参照 (model名, boundary名, ext, customType)
+TRef Text                  -- 名前による参照 (model名, boundary名, customType)
 TGeneric Text [TypeExpr]   -- List<T>, Map<K,V>, Option<T>, Result<T,E>, etc.
 TNullable TypeExpr         -- T?
+TExt Text                  -- 外部型 (ext で生成、W002 対象外)
 ```
 
-`ext` と `customType` はどちらも `TRef` を生成するが、意味が異なる:
-- `ext`: ターゲット言語の型。W002 検証対象外 (Inject 内の TRef は検査しない)
-- `customType`: プロジェクト定義の型。`registerType` で登録しないと W002 警告
+`ext` は `TExt` を生成し、`ref`/`customType` は `TRef` を生成する。この AST レベルの区別により、W002 検証と `typeRefs` 関数で外部型を正確に除外できる。
 
 ### Meta
 
@@ -96,22 +98,13 @@ Architecture
 `archRelations` は `relate` で登録した明示的関係のみ。`relations :: Architecture -> [Relation]` で
 DeclItem 由来の暗黙的関係 (needs, implements, bind, entry, references) と統合される。
 
-### Constraint DSL
-
-`constrain :: Text -> Text -> (Architecture -> [Text]) -> ArchBuilder ()` で制約を登録。
-述語コンビネータ:
-
-- `require kind msg pred` — 指定種の全宣言が述語を満たすこと
-- `forbid kind msg pred` — 指定種のいかなる宣言も述語を満たさないこと
-- `forAll kind f` — 汎用。各宣言に f を適用し違反メッセージを集約
-- `holds msg pred` — アーキテクチャ全体の性質を検査
-
 ### Architecture Algebra
 
 `Plat.Core.Algebra` が提供する代数操作:
 
-- `merge name a b` — 2つの Architecture を合成 (左優先重複排除)
+- `merge name a b` — 2つの Architecture を合成。互換性チェック付き (`Either [Conflict] Architecture`)
 - `mergeAll name as` — 複数を合成
+- `isCompatible a b` — 互換性チェック (コンフリクトのリスト)
 - `project pred a` — 述語で Declaration をフィルタ (孤立 Relation も除去)
 - `projectLayer layer a` — レイヤーで射影
 - `projectKind kind a` — 宣言種で射影

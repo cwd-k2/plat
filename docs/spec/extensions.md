@@ -1,13 +1,28 @@
-# Extension Guide
+# 拡張システム
 
-## Design Principle
+拡張は core の AST (`DeclItem`) を変更しない。smart constructor + `meta` タグの薄いラッパーとして実装される。
 
-拡張は core の AST (`DeclItem`) を変更しない。すべて以下のパターンで実装する:
+## Meta DSL (`Plat.Core.Meta`)
 
-1. **ExtId + MetaTag**: `Plat.Core.Meta` の DSL で拡張の語彙を定義
-2. **Smart constructor**: core の宣言コンストラクタをラップし、`tagAs` で分類
-3. **Query helpers**: `isTagged`/`annotations`/`references` で拡張メタデータを問い合わせる
-4. **Optional rules**: `PlatRule` instance を持つ検証ルール + `{ext}Rules :: [SomeRule]`
+拡張メタデータは4つの構造パターンに分類される。内部表現はすべて `[(Text, Text)]`。
+
+| Pattern | Write | Query | Key format |
+|---------|-------|-------|------------|
+| Kind tag | `tagAs tag` | `isTagged tag d` | `plat-{ext}:kind` |
+| Attribute | `attr ext key val` | `lookupAttr ext key d` | `plat-{ext}:{key}` |
+| Annotation | `annotate ext cat name val` | `annotations ext cat d` | `plat-{ext}:{cat}:{name}` |
+| Reference | `refer ext cat decl` | `references ext cat d` | `plat-{ext}:{cat}:{declName}` |
+
+```haskell
+-- 識別子と分類タグ
+type ExtId   -- 拡張の名前空間
+type MetaTag -- kind の値
+
+extId :: Text -> ExtId
+kind  :: ExtId -> Text -> MetaTag
+```
+
+## 拡張の実装パターン
 
 ```haskell
 -- 1. Meta vocabulary
@@ -29,28 +44,13 @@ isAggregate d = declKind d == Model && isTagged dddAggregate d
 
 -- 4. Optional rule
 data AggregateIdRule = AggregateIdRule
-instance PlatRule AggregateIdRule where
-  ruleCode _ = "DDD-V002"
-  checkDecl _ _ d
-    | isAggregate d, not (any isIdField (declBody d))
-    = [Diagnostic Warning "DDD-V002" "aggregate should have an Id field" (declName d) Nothing]
-    | otherwise = []
+instance PlatRule AggregateIdRule where ...
+
+dddRules :: [SomeRule]
+dddRules = [SomeRule ValueNoIdRule, SomeRule AggregateIdRule]
 ```
 
-## Meta DSL (`Plat.Core.Meta`)
-
-拡張メタデータは4つの構造パターンに分類される。いずれも内部表現は `[(Text, Text)]` のまま。
-
-| Pattern | Write | Query | Key format |
-|---------|-------|-------|------------|
-| Kind tag | `tagAs tag` | `isTagged tag d` | `plat-{ext}:kind` |
-| Attribute | `attr ext key val` | `lookupAttr ext key d` | `plat-{ext}:{key}` |
-| Annotation | `annotate ext cat name val` | `annotations ext cat d` | `plat-{ext}:{cat}:{name}` |
-| Reference | `refer ext cat decl` | `references ext cat d` | `plat-{ext}:{cat}:{declName}` |
-
-`ExtId` が名前空間を保証し、`MetaTag` が kind の値を型レベルで固定する。raw `meta` は引き続き利用可能だが、拡張実装では Meta DSL を使うこと。
-
-## Extension Summary
+## 標準拡張モジュール
 
 ### DDD (`Plat.Ext.DDD`)
 
@@ -151,15 +151,3 @@ ExtId: `modules` / Tags: `modulesDomain`
 | `import_` | `DeclWriter 'Compose` | `annotate modules "import" targetName srcName` |
 
 Rules: MOD-V001 (expose unknown decl), MOD-V002 (import unknown module)
-
-## Adding an Extension
-
-1. `src-hs/Plat/Ext/NewExt.hs` を作成
-2. `ExtId` を定義: `newext = extId "newext"`
-3. `MetaTag` を定義: `newextFoo = kind newext "foo"`
-4. Smart constructor: core コンストラクタ + `tagAs newextFoo` のラッパー
-5. Query helper: `isTagged`/`annotations`/`references` ベースの述語
-6. ルール (任意): `newextRules :: [SomeRule]`
-7. `plat.cabal` の `exposed-modules` に追加
-
-詳細: [docs/spec/extensions.md](spec/extensions.md)
