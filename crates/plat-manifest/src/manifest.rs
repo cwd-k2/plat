@@ -9,6 +9,8 @@ pub struct Manifest {
     pub layers: Vec<Layer>,
     #[serde(default)]
     pub type_aliases: Vec<TypeAlias>,
+    #[serde(default)]
+    pub custom_types: Vec<String>,
     pub declarations: Vec<Declaration>,
     #[serde(default)]
     pub bindings: Vec<Binding>,
@@ -21,7 +23,7 @@ pub struct Manifest {
 }
 
 fn default_schema_version() -> String {
-    "0.5".to_string()
+    "0.6".to_string()
 }
 
 #[derive(Debug, Deserialize, Serialize)]

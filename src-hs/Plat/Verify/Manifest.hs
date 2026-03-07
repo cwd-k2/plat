@@ -41,6 +41,7 @@ data Manifest = Manifest
   , mName        :: Text
   , mLayers      :: [ManifestLayer]
   , mTypeAliases :: [ManifestTypeAlias]
+  , mCustomTypes :: [Text]
   , mDecls       :: [ManifestDecl]
   , mBindings    :: [ManifestBinding]
   , mConstraints :: [ManifestConstraint]
@@ -112,6 +113,7 @@ instance ToJSON Manifest where
     , "name"           .= mName m
     , "layers"         .= mLayers m
     , "type_aliases"   .= mTypeAliases m
+    , "custom_types"   .= mCustomTypes m
     , "declarations"   .= mDecls m
     , "bindings"       .= mBindings m
     , "constraints"    .= mConstraints m
@@ -190,10 +192,11 @@ metaObject = toJSON . Map.fromList
 
 instance FromJSON Manifest where
   parseJSON = withObject "Manifest" $ \o -> Manifest
-    <$> o .:? "schema_version" .!= "0.5"
+    <$> o .:? "schema_version" .!= "0.6"
     <*> o .:  "name"
     <*> o .:  "layers"
     <*> o .:? "type_aliases" .!= []
+    <*> o .:? "custom_types" .!= []
     <*> o .:  "declarations"
     <*> o .:? "bindings" .!= []
     <*> o .:? "constraints" .!= []
@@ -264,6 +267,7 @@ manifest a = Manifest
   , mName        = archName a
   , mLayers      = map toManifestLayer (archLayers a)
   , mTypeAliases = map toManifestTypeAlias (archTypes a)
+  , mCustomTypes = archCustomTypes a
   , mDecls       = map toManifestDecl (archDecls a)
   , mBindings    = concatMap extractBindings (archDecls a)
   , mConstraints = map toManifestConstraint (archConstraints a)

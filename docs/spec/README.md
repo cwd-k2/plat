@@ -53,6 +53,7 @@ Architecture（AST: Declaration + ArchConstraint + Relation）
 | [constraint.md](constraint.md) | 制約システム — ArchConstraint, 述語コンビネータ, プリセット |
 | [relation.md](relation.md) | 関係グラフ — 暗黙的/明示的関係, グラフ走査 |
 | [algebra.md](algebra.md) | Architecture 代数 — merge, project, diff |
+| [manifest.md](manifest.md) | Manifest スキーマ — JSON 契約仕様, Haskell/Rust 間の唯一の interface |
 
 ## なぜ Haskell か
 

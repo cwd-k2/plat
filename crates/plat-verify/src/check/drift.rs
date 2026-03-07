@@ -121,6 +121,7 @@ mod tests {
             name: "test".to_string(),
             layers: vec![],
             type_aliases: vec![],
+            custom_types: vec![],
             declarations,
             bindings: vec![],
             constraints: vec![],

@@ -315,7 +315,7 @@ field "err"    error_                  -- 予約型
 
 ```
 mise run build            # Build
-mise run test             # 223 tests
+mise run test             # 226 tests
 mise run lint             # -Werror
 mise run repl             # GHCi
 mise run watch            # Rebuild on change

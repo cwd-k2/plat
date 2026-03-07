@@ -1,0 +1,419 @@
+{
+    "bindings": [
+        {
+            "adapter": "PostgresOrderRepo",
+            "boundary": "OrderRepository"
+        },
+        {
+            "adapter": "StripePayment",
+            "boundary": "PaymentGateway"
+        }
+    ],
+    "constraints": [],
+    "custom_types": [
+        "UUID"
+    ],
+    "declarations": [
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [],
+            "kind": "model",
+            "layer": "core",
+            "meta": {
+                "kind": "enum"
+            },
+            "name": "OrderStatus",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": []
+        },
+        {
+            "entries": [],
+            "fields": [
+                {
+                    "name": "productId",
+                    "type": "UUID"
+                },
+                {
+                    "name": "quantity",
+                    "type": "Int"
+                },
+                {
+                    "name": "unitPrice",
+                    "type": "Money"
+                }
+            ],
+            "implements": null,
+            "injects": [],
+            "inputs": [],
+            "kind": "model",
+            "layer": "core",
+            "meta": {},
+            "name": "OrderItem",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": []
+        },
+        {
+            "entries": [],
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "UUID"
+                },
+                {
+                    "name": "customerId",
+                    "type": "UUID"
+                },
+                {
+                    "name": "items",
+                    "type": "List<OrderItem>"
+                },
+                {
+                    "name": "status",
+                    "type": "OrderStatus"
+                },
+                {
+                    "name": "total",
+                    "type": "Money"
+                },
+                {
+                    "name": "createdAt",
+                    "type": "DateTime"
+                },
+                {
+                    "name": "updatedAt",
+                    "type": "DateTime"
+                }
+            ],
+            "implements": null,
+            "injects": [],
+            "inputs": [],
+            "kind": "model",
+            "layer": "core",
+            "meta": {},
+            "name": "Order",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": [
+                "domain/order.go"
+            ]
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [],
+            "kind": "boundary",
+            "layer": "interface",
+            "meta": {},
+            "name": "OrderRepository",
+            "needs": [],
+            "ops": [
+                {
+                    "inputs": [
+                        {
+                            "name": "order",
+                            "type": "Order"
+                        }
+                    ],
+                    "name": "save",
+                    "outputs": [
+                        {
+                            "name": "err",
+                            "type": "Error"
+                        }
+                    ]
+                },
+                {
+                    "inputs": [
+                        {
+                            "name": "id",
+                            "type": "UUID"
+                        }
+                    ],
+                    "name": "findById",
+                    "outputs": [
+                        {
+                            "name": "order",
+                            "type": "Order"
+                        },
+                        {
+                            "name": "err",
+                            "type": "Error"
+                        }
+                    ]
+                }
+            ],
+            "outputs": [],
+            "paths": [
+                "usecase/port/order_repo.go"
+            ]
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [],
+            "kind": "boundary",
+            "layer": "interface",
+            "meta": {},
+            "name": "PaymentGateway",
+            "needs": [],
+            "ops": [
+                {
+                    "inputs": [
+                        {
+                            "name": "amount",
+                            "type": "Money"
+                        },
+                        {
+                            "name": "cardToken",
+                            "type": "String"
+                        }
+                    ],
+                    "name": "charge",
+                    "outputs": [
+                        {
+                            "name": "chargeId",
+                            "type": "String"
+                        },
+                        {
+                            "name": "err",
+                            "type": "Error"
+                        }
+                    ]
+                }
+            ],
+            "outputs": [],
+            "paths": []
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [
+                {
+                    "name": "customerId",
+                    "type": "UUID"
+                },
+                {
+                    "name": "items",
+                    "type": "List<OrderItem>"
+                }
+            ],
+            "kind": "operation",
+            "layer": "application",
+            "meta": {},
+            "name": "PlaceOrder",
+            "needs": [
+                "OrderRepository",
+                "PaymentGateway"
+            ],
+            "ops": [],
+            "outputs": [
+                {
+                    "name": "order",
+                    "type": "Order"
+                },
+                {
+                    "name": "err",
+                    "type": "Error"
+                }
+            ],
+            "paths": [
+                "usecase/place_order.go"
+            ]
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [
+                {
+                    "name": "orderId",
+                    "type": "UUID"
+                }
+            ],
+            "kind": "operation",
+            "layer": "application",
+            "meta": {},
+            "name": "CancelOrder",
+            "needs": [
+                "OrderRepository"
+            ],
+            "ops": [],
+            "outputs": [
+                {
+                    "name": "err",
+                    "type": "Error"
+                }
+            ],
+            "paths": []
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [
+                {
+                    "name": "id",
+                    "type": "UUID"
+                }
+            ],
+            "kind": "operation",
+            "layer": "application",
+            "meta": {},
+            "name": "GetOrder",
+            "needs": [
+                "OrderRepository"
+            ],
+            "ops": [],
+            "outputs": [
+                {
+                    "name": "order",
+                    "type": "Order"
+                },
+                {
+                    "name": "err",
+                    "type": "Error"
+                }
+            ],
+            "paths": []
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": "OrderRepository",
+            "injects": [
+                {
+                    "name": "db",
+                    "type": "*sql.DB"
+                }
+            ],
+            "inputs": [],
+            "kind": "adapter",
+            "layer": "infra",
+            "meta": {},
+            "name": "PostgresOrderRepo",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": [
+                "adapter/postgres/order_repo.go"
+            ]
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": "PaymentGateway",
+            "injects": [
+                {
+                    "name": "client",
+                    "type": "*stripe.Client"
+                }
+            ],
+            "inputs": [],
+            "kind": "adapter",
+            "layer": "infra",
+            "meta": {},
+            "name": "StripePayment",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": []
+        },
+        {
+            "entries": [],
+            "fields": [],
+            "implements": null,
+            "injects": [
+                {
+                    "name": "placeOrder",
+                    "type": "PlaceOrder"
+                },
+                {
+                    "name": "router",
+                    "type": "chi.Router"
+                }
+            ],
+            "inputs": [],
+            "kind": "adapter",
+            "layer": "infra",
+            "meta": {},
+            "name": "OrderHttpHandler",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": [
+                "adapter/http/handler.go"
+            ]
+        },
+        {
+            "entries": [
+                "OrderHttpHandler",
+                "MainServer"
+            ],
+            "fields": [],
+            "implements": null,
+            "injects": [],
+            "inputs": [],
+            "kind": "compose",
+            "layer": null,
+            "meta": {},
+            "name": "AppRoot",
+            "needs": [],
+            "ops": [],
+            "outputs": [],
+            "paths": []
+        }
+    ],
+    "layers": [
+        {
+            "depends": [],
+            "name": "core"
+        },
+        {
+            "depends": [
+                "core",
+                "interface"
+            ],
+            "name": "application"
+        },
+        {
+            "depends": [
+                "core"
+            ],
+            "name": "interface"
+        },
+        {
+            "depends": [
+                "core",
+                "application",
+                "interface"
+            ],
+            "name": "infra"
+        }
+    ],
+    "meta": {},
+    "name": "order-service",
+    "relations": [],
+    "schema_version": "0.6",
+    "type_aliases": [
+        {
+            "name": "Money",
+            "type": "Decimal"
+        }
+    ]
+}

@@ -13,6 +13,7 @@ import Test.Manifest
 
 main :: IO ()
 main = do
+  writeGoldenManifest
   results <- sequence
     [ section "Core eDSL"          testCoreEdsl
     , section "Check"              testCheck

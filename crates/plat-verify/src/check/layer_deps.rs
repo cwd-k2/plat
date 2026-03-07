@@ -105,6 +105,7 @@ mod tests {
         Manifest {
             schema_version: "0.6".to_string(),
             name: "test".to_string(),
+            custom_types: vec![],
             layers: vec![
                 Layer {
                     name: "domain".to_string(),

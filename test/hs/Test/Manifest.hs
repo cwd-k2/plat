@@ -1,15 +1,27 @@
 module Test.Manifest
   ( testManifest
+  , writeGoldenManifest
   ) where
 
 import Plat.Verify.Manifest
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
+import System.Directory (createDirectoryIfMissing)
 
 import Test.Harness
 import Test.Fixtures
 
 ----------------------------------------------------------------------
+
+goldenPath :: FilePath
+goldenPath = "test/golden/manifest.json"
+
+-- | Write the golden manifest file for cross-language testing.
+writeGoldenManifest :: IO ()
+writeGoldenManifest = do
+  createDirectoryIfMissing True "test/golden"
+  TIO.writeFile goldenPath (renderManifest (manifest coreArch))
 
 testManifest :: TestResult
 testManifest = do
@@ -26,6 +38,9 @@ testManifest = do
     , ("type aliases present",    not (null (mTypeAliases m)))
     , ("type alias name",         mtaName (head (mTypeAliases m)) == "Money")
     , ("type alias type",         mtaType (head (mTypeAliases m)) == "Decimal")
+    , ("custom types present",   mCustomTypes m == ["UUID"])
+    , ("round-trip custom types", fmap mCustomTypes parsed == Just ["UUID"])
+    , ("custom_types in json",   "custom_types" `T.isInfixOf` json)
     , ("decl has meta",
         let statusDecl = head [d | d <- mDecls m, mdName d == "OrderStatus"]
         in  not (null (mdMeta statusDecl)))
