@@ -19,6 +19,8 @@ import Plat.Core.Builder
 import Plat.Core.Meta
 import Plat.Check.Class
 
+import qualified Data.Set as Set
+
 -- | CQRS extension identifier
 cqrs :: ExtId
 cqrs = extId "cqrs"
@@ -54,6 +56,25 @@ isQuery d = declKind d == Operation && isTagged cqrsQuery d
 -- CQRS Rules
 ----------------------------------------------------------------------
 
--- | CQRS 拡張の検証ルール一覧 (現在は空)
+-- | CQRS-W001: query が command と同じ boundary を needs している
+--
+-- strict CQRS では read/write パスを分離するため、
+-- query と command が同じ boundary に依存する場合に警告する。
+data QuerySharedBoundaryRule = QuerySharedBoundaryRule
+instance PlatRule QuerySharedBoundaryRule where
+  ruleCode _ = "CQRS-W001"
+  checkArch _ a =
+    [ Diagnostic Warning "CQRS-W001"
+        ("query " <> declName q <> " shares boundary " <> bnd <> " with commands")
+        (declName q) (Just bnd)
+    | q <- archDecls a, isQuery q
+    , bnd <- declNeeds q
+    , bnd `Set.member` commandNeeds
+    ]
+    where
+      commandNeeds = Set.fromList
+        [ n | c <- archDecls a, isCommand c, n <- declNeeds c ]
+
+-- | CQRS 拡張の検証ルール一覧
 cqrsRules :: [SomeRule]
-cqrsRules = []
+cqrsRules = [SomeRule QuerySharedBoundaryRule]

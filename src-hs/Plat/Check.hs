@@ -18,6 +18,10 @@ module Plat.Check
   , hasViolations
   , hasWarnings
 
+    -- * Custom rule constructors
+  , mkDeclRule
+  , mkArchRule
+
     -- * Validated architecture
   , Validated (..)
   , validate
@@ -117,3 +121,33 @@ checkOrFail arch = do
   ioResult <- checkIO arch
   T.putStrLn (prettyCheck ioResult)
   when (hasViolations ioResult) exitFailure
+
+----------------------------------------------------------------------
+-- Custom rule constructors
+----------------------------------------------------------------------
+
+-- | 宣言単位のカスタムルールを簡易に作成する。
+--
+-- @
+-- let noFooRule = mkDeclRule "MY-001" $ \\arch d ->
+--       [ Diagnostic Error "MY-001" "name must not be Foo" (declName d) Nothing
+--       | declName d == "Foo"
+--       ]
+-- checkWith (coreRules ++ [noFooRule]) myArch
+-- @
+mkDeclRule :: Text -> (Architecture -> Declaration -> [Diagnostic]) -> SomeRule
+mkDeclRule code f = SomeRule (CustomDeclRule code f)
+
+-- | アーキテクチャ全体のカスタムルールを簡易に作成する。
+mkArchRule :: Text -> (Architecture -> [Diagnostic]) -> SomeRule
+mkArchRule code f = SomeRule (CustomArchRule code f)
+
+data CustomDeclRule = CustomDeclRule Text (Architecture -> Declaration -> [Diagnostic])
+instance PlatRule CustomDeclRule where
+  ruleCode (CustomDeclRule c _) = c
+  checkDecl (CustomDeclRule _ f) = f
+
+data CustomArchRule = CustomArchRule Text (Architecture -> [Diagnostic])
+instance PlatRule CustomArchRule where
+  ruleCode (CustomArchRule c _) = c
+  checkArch (CustomArchRule _ f) = f

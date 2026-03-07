@@ -38,6 +38,7 @@ main = do
     , section "Algebraic props"   testAlgebraicProperties
     , section "Constraint comp"   testConstraintComposition
     , section "Compatibility"     testCompatibility
+    , section "Custom rule API"   testCustomRuleApi
     , section "Validated"         testValidated
     ]
   let total   = sum (map fst results)

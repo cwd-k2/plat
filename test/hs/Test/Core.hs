@@ -6,6 +6,7 @@ module Test.Core
   , testLayerViolations
   , testMetaProgramming
   , testNewRules
+  , testCustomRuleApi
   ) where
 
 import Plat.Core
@@ -163,4 +164,27 @@ testNewRules = do
                                      && "PaymentGateway" `T.isInfixOf` dMessage d) (warnings r2))
     , ("multi-implements last wins",
         findImplements (declBody (decl multiImplAdapter)) == Just "PaymentGateway")
+    ]
+
+testCustomRuleApi :: TestResult
+testCustomRuleApi = do
+  let noFoo = mkDeclRule "CUSTOM-001" $ \_ d ->
+        [ Diagnostic Error "CUSTOM-001" "no Foo allowed" (declName d) Nothing
+        | declName d == "Foo"
+        ]
+      maxDecls = mkArchRule "CUSTOM-002" $ \a ->
+        [ Diagnostic Warning "CUSTOM-002" "too many declarations" "arch" Nothing
+        | length (archDecls a) > 5
+        ]
+      fooModel = model "Foo" core $ field "x" int
+      testArch = arch "custom-rule-test" $ do
+        useLayers [core]
+        declare fooModel
+      r1 = checkWith [noFoo] testArch
+      r2 = checkWith [maxDecls] coreArch  -- coreArch has 12 decls
+  runTests
+    [ ("mkDeclRule triggers",   any (\d -> dCode d == "CUSTOM-001") (violations r1))
+    , ("mkArchRule triggers",   any (\d -> dCode d == "CUSTOM-002") (warnings r2))
+    , ("mkArchRule silent",     not (any (\d -> dCode d == "CUSTOM-002")
+                                     (warnings (checkWith [maxDecls] testArch))))
     ]

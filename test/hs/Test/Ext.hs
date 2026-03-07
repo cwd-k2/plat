@@ -126,13 +126,26 @@ testDDD = do
     ]
 
 testCQRS :: TestResult
-testCQRS = runTests
-  [ ("command is Operation",   declKind (decl placeOrderCmd) == Operation)
-  , ("command has meta",       isCommand (decl placeOrderCmd))
-  , ("query is Operation",     declKind (decl getOrderQuery) == Operation)
-  , ("query has meta",         isQuery (decl getOrderQuery))
-  , ("command is not query",   not (isQuery (decl placeOrderCmd)))
-  ]
+testCQRS = do
+  -- CQRS-W001: query shares boundary with command
+  let cqrsArch = arch "cqrs-test" $ do
+        useLayers [core, application, interface]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+        declare placeOrderCmd
+        declare getOrderQuery
+      r = checkWith (coreRules ++ cqrsRules) cqrsArch
+  T.putStrLn (prettyCheck r)
+  runTests
+    [ ("command is Operation",   declKind (decl placeOrderCmd) == Operation)
+    , ("command has meta",       isCommand (decl placeOrderCmd))
+    , ("query is Operation",     declKind (decl getOrderQuery) == Operation)
+    , ("query has meta",         isQuery (decl getOrderQuery))
+    , ("command is not query",   not (isQuery (decl placeOrderCmd)))
+    , ("CQRS-W001: shared boundary",
+        any (\d -> dCode d == "CQRS-W001") (warnings r))
+    ]
 
 testCleanArch :: TestResult
 testCleanArch = do
@@ -331,6 +344,15 @@ testEvents = do
         any (\d -> dCode d == "EVT-V001") (violations r1))
     , ("EVT-W001: handler targets unknown event",
         any (\d -> dCode d == "EVT-W001") (warnings r2))
+    , ("EVT-W002: unhandled event",
+        let emitOnly = arch "evt-no-handler" $ do
+              useLayers [core, application, interface]
+              declare order
+              declare orderRepo
+              declare orderPlaced
+              declare placeOrderWithEvent
+            r3 = checkWith (coreRules ++ eventsRules) emitOnly
+        in any (\d -> dCode d == "EVT-W002") (warnings r3))
     ]
 
 testModules :: TestResult
@@ -382,4 +404,20 @@ testModules = do
         any (\d -> dCode d == "MOD-V001") (violations r1))
     , ("MOD-V002: import unknown module",
         any (\d -> dCode d == "MOD-V002") (violations r2))
+    , ("MOD-W001: import not exposed",
+        let secretDecl = model "Secret" core $ field "x" int
+            srcMod = domain "SrcDomain" $
+              expose order  -- only exposes order, not secretDecl
+            importMod = domain "ImportDomain" $ do
+              import_ srcMod secretDecl  -- imports Secret which is not exposed
+              expose paymentGateway
+            modArch3 = arch "mod-encap" $ do
+              useLayers [core, interface]
+              declare order
+              declare secretDecl
+              declare paymentGateway
+              declare srcMod
+              declare importMod
+            r3 = checkWith (coreRules ++ modulesRules) modArch3
+        in any (\d -> dCode d == "MOD-W001") (warnings r3))
     ]
