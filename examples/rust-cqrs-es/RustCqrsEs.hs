@@ -82,7 +82,7 @@ out fp content = do
 
 main :: IO ()
 main = do
-  let dir = "dist"
+  let dir = "examples/rust-cqrs-es/dist"
   putStrLn "=== Rust CQRS + Event Sourcing: Bank Account Service ==="
 
   out (dir </> "check.txt")         (prettyCheck (checkWith (coreRules ++ dddRules) architecture))

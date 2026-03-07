@@ -27,6 +27,7 @@ run = "cabal build --ghc-options=-Werror"
 description = "Run all examples"
 run = """
 echo '--- Go Clean Architecture ---' && cabal run example-go-clean-arch 2>/dev/null
+echo '--- Go Feature-Sliced CA ---' && cabal run example-go-feature-sliced 2>/dev/null
 echo '--- TypeScript Hexagonal ---' && cabal run example-ts-hexagonal 2>/dev/null
 echo '--- Rust CQRS + Event Sourcing ---' && cabal run example-rust-cqrs-es 2>/dev/null
 """

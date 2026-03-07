@@ -48,23 +48,38 @@ Architecture と実装の乖離を検出するための基盤。
   - TypeScript: eslint-plugin-boundaries 設定
   - 汎用: 依存マトリクス (人間可読)
 
+### plat-verify (Rust)
+
+manifest と実装ソースの構造的適合性を検証するスタンドアロンツール。
+
+- tree-sitter ベースの fact extraction (Go, TypeScript, Rust)
+- 5カテゴリのチェック: E0xx (existence), S0xx (structure), R0xx (relation), T0xx (drift), L0xx (layer deps)
+- テキスト / JSON レポート出力
+- `--check` CLI フラグによるカテゴリ単位の有効化
+- `--check` フラグで CI パイプラインに適合性ゲートを組み込み可能
+- `layer_match = "component"` による feature-first ディレクトリレイアウト対応
+- ファイルレベルのインクリメンタルキャッシュ (mtime + size ベース)
+
 ### Examples
 
-3つのアーキテクチャパターンを plat で記述し、各ターゲット言語で実装:
+4つのアーキテクチャパターンを plat で記述し、各ターゲット言語で実装:
 
 | Example | Pattern | Language | Extensions |
 |---------|---------|----------|------------|
 | GoCleanArch | Clean Architecture | Go | CleanArch, DDD, Http |
+| GoFeatureSliced | Feature-Sliced CA | Go | CleanArch, Modules |
 | TsHexagonal | Hexagonal | TypeScript | Core only |
 | RustCqrsEs | CQRS + Event Sourcing | Rust | CQRS, Events, DDD, Flow |
+
+各 example は `Arch/` モジュール階層で構造化され、生成物を `dist/` に出力する。
 
 ## Future Directions
 
 ### Verification の深化
 
-- **Manifest comparator**: JSON マニフェストと実装ソースを照合するスタンドアロンツール。CI パイプラインで `plat manifest | plat-verify src/` のように使用
-- **Import graph analysis**: Go の import、TS の import/require、Rust の use を解析し、レイヤー依存違反を検出。DepRules の linter 設定生成とは別に、plat 自身がチェックする方向
-- **Drift detection**: skeleton の再生成結果と既存コードの diff を取り、意図しない乖離を警告
+- **Import graph analysis**: Go の import、TS の import/require、Rust の use を解析し、レイヤー依存違反を検出。DepRules の linter 設定生成とは別に、plat-verify 自身がチェックする方向
+- **`--watch` モード**: ファイル変更時に自動再検証
+- **LSP 連携**: finding 出力を Diagnostic 互換形式にし、エディタ統合
 
 ### Code Generation の拡充
 

@@ -8,7 +8,6 @@ dist-newstyle/
 
 # Examples: generated output
 examples/*/dist/
-dist/
 
 # Examples: TypeScript
 examples/ts-hexagonal/node_modules/

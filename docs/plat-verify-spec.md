@@ -101,6 +101,7 @@ plat-verify は設定ファイル `plat-verify.toml` で動作をカスタマイ
 [source]
 language = "go"                    # "go" | "typescript" | "rust"
 root = "./src"                     # ソースルートディレクトリ
+layer_match = "prefix"             # "prefix" (default) | "component"
 
 [source.layer_dirs]                # layer → ディレクトリのマッピング
 enterprise  = "domain"
@@ -130,6 +131,29 @@ layer_deps = false                 # L0xx: レイヤー依存方向チェック 
 [checks.severity]
 # 個別チェックの severity override
 S002 = "warning"                   # フィールド型不一致を warning に下げる例
+```
+
+### Layer Match
+
+`layer_match` はレイヤーディレクトリの解決方法を制御する。
+
+| Mode | Description |
+|------|-------------|
+| `prefix` (default) | ソースルートからの相対パスの先頭がレイヤーディレクトリに一致するか。伝統的なレイヤーファースト構成向け |
+| `component` | パスの任意のコンポーネントがレイヤーディレクトリに一致するか。フィーチャーファースト構成向け |
+
+```
+# prefix: src/domain/order.go → layer "enterprise" (domain/ がプレフィクス)
+# component: order/domain/model.go → layer "enterprise" (domain がコンポーネントに含まれる)
+```
+
+`component` モードは feature-sliced architecture で使用する。各フィーチャーディレクトリ内にレイヤーディレクトリが配置される構成:
+
+```
+order/domain/     → enterprise layer
+order/port/       → interface layer
+order/usecase/    → application layer
+catalog/domain/   → enterprise layer
 ```
 
 ### Language Defaults
@@ -457,16 +481,17 @@ steps:
 | `clap` | CLI 引数パース |
 | `walkdir` | ディレクトリ走査 |
 
-### モジュール構成 (想定)
+### モジュール構成
 
 ```
 src/
-  main.rs              -- CLI entry point
-  config.rs            -- 設定ファイル読み込み
+  main.rs              -- CLI entry point, cache 統合
+  config.rs            -- 設定ファイル読み込み + LayerMatch enum
   manifest.rs          -- manifest JSON のデシリアライズ + 型定義
+  cache.rs             -- ファイルレベルインクリメンタルキャッシュ (mtime + size)
   extract/
-    mod.rs             -- SourceFact 型定義 + language dispatch
-    go.rs              -- Go tree-sitter extraction
+    mod.rs             -- TypeDef 型定義, extract_all, resolve_layer, parse dispatch
+    go.rs              -- Go tree-sitter extraction (new_parser, is_test_file, parse_file)
     typescript.rs      -- TypeScript tree-sitter extraction
     rust.rs            -- Rust tree-sitter extraction
   check/
@@ -476,7 +501,7 @@ src/
     relation.rs        -- R0xx checks
     compose.rs         -- R003/R004 manifest 内部整合性
     layer_deps.rs      -- L0xx layer 依存方向
-    drift.rs           -- T0xx checks
+    drift.rs           -- T0xx drift 検出
   report/
     mod.rs             -- Report dispatch
     text.rs            -- テキスト出力
@@ -537,28 +562,33 @@ src/
 
 ## 10. Phases
 
-### Phase 1: Foundation
+### Phase 1: Foundation — complete
 
 - manifest パース + 設定読み込み
 - Go の fact extraction (struct, interface, imports)
 - E0xx (existence) + S0xx (structure) チェック
 - テキストレポート出力
 
-### Phase 2: Full Language Support
+### Phase 2: Full Language Support — complete
 
 - TypeScript, Rust の fact extraction
 - R0xx (relation) チェック
 - JSON レポート出力
 - CI integration examples
 
-### Phase 3: Advanced
+### Phase 3: Advanced — complete
 
-- T0xx (drift) チェック — 実装済
-- L0xx (layer deps) チェック — 実装済
-- `--check` CLI フラグ — 実装済
+- T0xx (drift) チェック
+- L0xx (layer deps) チェック
+- `--check` CLI フラグ
+- `layer_match = "component"` (feature-first ディレクトリ対応)
+- ファイルレベルインクリメンタルキャッシュ (mtime + size)
+- extraction pipeline リファクタリング (I/O とパースの分離)
+
+### Phase 4: Future
+
 - `--watch` モード (ファイル変更時に自動再検証)
 - LSP 連携のための finding 出力 (Diagnostic 互換形式)
-- パフォーマンス最適化 (incremental parsing, キャッシュ)
 
 ## 11. Scope Boundary
 

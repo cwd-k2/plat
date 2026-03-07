@@ -57,7 +57,7 @@ out fp content = do
 
 main :: IO ()
 main = do
-  let dir = "dist"
+  let dir = "examples/go-clean-arch/dist"
   putStrLn "=== Go Clean Architecture: Order Service ==="
 
   -- Validation

@@ -70,7 +70,7 @@ out fp content = do
 
 main :: IO ()
 main = do
-  let dir = "dist"
+  let dir = "examples/go-feature-sliced/dist"
   putStrLn "=== Go Feature-Sliced CA: E-Commerce Platform ==="
 
   out (dir </> "check.txt")         (prettyCheck (check architecture))

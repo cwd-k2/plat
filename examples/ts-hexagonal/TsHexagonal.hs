@@ -77,7 +77,7 @@ out fp content = do
 
 main :: IO ()
 main = do
-  let dir = "dist"
+  let dir = "examples/ts-hexagonal/dist"
   putStrLn "=== TypeScript Hexagonal: Notification Service ==="
 
   out (dir </> "check.txt")         (prettyCheck (check architecture))
