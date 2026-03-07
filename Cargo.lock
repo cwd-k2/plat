@@ -401,6 +401,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "plat-doc"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "plat-manifest",
+ "serde_json",
+]
+
+[[package]]
 name = "plat-manifest"
 version = "0.1.0"
 dependencies = [

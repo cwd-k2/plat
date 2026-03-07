@@ -20,8 +20,6 @@ library
     Plat.Check.Metrics
     Plat.Check.Presets
     Plat.Check.Rules
-    Plat.Generate.Mermaid
-    Plat.Generate.Markdown
     Plat.Ext.DDD
     Plat.Ext.CQRS
     Plat.Ext.CleanArch

@@ -1,8 +1,6 @@
 module Test.Core
   ( testCoreEdsl
   , testCheck
-  , testRenderMermaid
-  , testRenderMarkdown
   , testLayerViolations
   , testMetaProgramming
   , testNewRules
@@ -11,8 +9,6 @@ module Test.Core
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Mermaid (renderMermaid)
-import Plat.Generate.Markdown (renderMarkdown)
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -60,34 +56,6 @@ testCheck = do
   runTests
     [ ("no violations",  not (hasViolations r))
     , ("no warnings",    not (hasWarnings r))
-    ]
-
-testRenderMermaid :: TestResult
-testRenderMermaid = do
-  let mmd = renderMermaid coreArch
-  T.putStrLn mmd
-  runTests
-    [ ("mermaid non-empty",     T.length mmd > 0)
-    , ("starts with graph TD",  "graph TD" `T.isInfixOf` mmd)
-    , ("contains Order node",   "Order[" `T.isInfixOf` mmd)
-    , ("contains needs edge",   "needs" `T.isInfixOf` mmd)
-    , ("contains bind edge",    "bind" `T.isInfixOf` mmd)
-    ]
-
-testRenderMarkdown :: TestResult
-testRenderMarkdown = do
-  let md = renderMarkdown coreArch
-  runTests
-    [ ("markdown non-empty",    T.length md > 0)
-    , ("has title",             "# order-service" `T.isInfixOf` md)
-    , ("has layers section",    "## Layers" `T.isInfixOf` md)
-    , ("has model section",     "## Order" `T.isInfixOf` md)
-    , ("has field table",       "| Field | Type |" `T.isInfixOf` md)
-    , ("has boundary section",  "## OrderRepository" `T.isInfixOf` md)
-    , ("has operation section", "## PlaceOrder" `T.isInfixOf` md)
-    , ("has depends on",        "**Depends on**" `T.isInfixOf` md)
-    , ("has adapter section",   "## PostgresOrderRepo" `T.isInfixOf` md)
-    , ("has compose section",   "## AppRoot" `T.isInfixOf` md)
     ]
 
 testLayerViolations :: TestResult

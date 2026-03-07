@@ -6,8 +6,7 @@ module Main where
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Mermaid   (renderMermaid)
-import Plat.Generate.Markdown  (renderMarkdown)
+import Plat.Verify.Manifest (manifest, renderManifest)
 import Plat.Ext.DDD            (dddRules)
 
 import Data.Text (Text)
@@ -86,7 +85,6 @@ main = do
   putStrLn "=== Rust CQRS + Event Sourcing: Bank Account Service ==="
 
   out (dir </> "check.txt")         (prettyCheck (checkWith (coreRules ++ dddRules) architecture))
-  out (dir </> "architecture.md")   (renderMarkdown architecture)
-  out (dir </> "architecture.mmd")  (renderMermaid architecture)
+  out (dir </> "manifest.json")     (renderManifest (manifest architecture))
 
   putStrLn "done."

@@ -9,8 +9,7 @@ import qualified Data.Text.IO as TIO
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Mermaid  (renderMermaid)
-import Plat.Generate.Markdown (renderMarkdown)
+import Plat.Verify.Manifest (manifest, renderManifest)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>), takeDirectory)
 
@@ -81,7 +80,6 @@ main = do
   putStrLn "=== TypeScript Hexagonal: Notification Service ==="
 
   out (dir </> "check.txt")         (prettyCheck (check architecture))
-  out (dir </> "architecture.md")   (renderMarkdown architecture)
-  out (dir </> "architecture.mmd")  (renderMermaid architecture)
+  out (dir </> "manifest.json")     (renderManifest (manifest architecture))
 
   putStrLn "done."

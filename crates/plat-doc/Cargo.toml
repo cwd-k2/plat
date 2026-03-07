@@ -1,0 +1,19 @@
+[package]
+name = "plat-doc"
+version = "0.1.0"
+edition = "2021"
+description = "Generate documentation (Mermaid, Markdown) from plat architecture manifest"
+
+[[bin]]
+name = "plat-doc"
+
+[lib]
+name = "plat_doc"
+
+[dependencies]
+plat-manifest = { path = "../plat-manifest" }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"

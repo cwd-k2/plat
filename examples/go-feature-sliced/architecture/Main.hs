@@ -15,8 +15,6 @@ module Main where
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Mermaid   (renderMermaid)
-import Plat.Generate.Markdown  (renderMarkdown)
 import Plat.Ext.CleanArch      (cleanArchLayers, wire)
 
 import Data.Text (Text)
@@ -74,8 +72,6 @@ main = do
   putStrLn "=== Go Feature-Sliced CA: E-Commerce Platform ==="
 
   out (dir </> "check.txt")         (prettyCheck (check architecture))
-  out (dir </> "architecture.md")   (renderMarkdown architecture)
-  out (dir </> "architecture.mmd")  (renderMermaid architecture)
-  out (dir </> "manifest.toml")     (renderManifest (manifest architecture))
+  out (dir </> "manifest.json")     (renderManifest (manifest architecture))
 
   putStrLn "done."

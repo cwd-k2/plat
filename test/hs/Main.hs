@@ -17,8 +17,6 @@ main = do
   results <- sequence
     [ section "Core eDSL"          testCoreEdsl
     , section "Check"              testCheck
-    , section "Render Mermaid"     testRenderMermaid
-    , section "Render Markdown"    testRenderMarkdown
     , section "Layer violations"   testLayerViolations
     , section "Ext.DDD"            testDDD
     , section "Ext.CQRS"          testCQRS

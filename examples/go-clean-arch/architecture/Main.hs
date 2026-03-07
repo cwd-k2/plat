@@ -6,8 +6,6 @@ module Main where
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Mermaid   (renderMermaid)
-import Plat.Generate.Markdown  (renderMarkdown)
 import Plat.Ext.CleanArch      (cleanArchLayers, wire)
 
 import Data.Text (Text)
@@ -62,13 +60,7 @@ main = do
   let checkResult = check architecture
   out (dir </> "check.txt") (prettyCheck checkResult)
 
-  -- Markdown
-  out (dir </> "architecture.md") (renderMarkdown architecture)
-
-  -- Mermaid
-  out (dir </> "architecture.mmd") (renderMermaid architecture)
-
-  -- Manifest (consumed by Rust tools: plat-verify, plat-skeleton, etc.)
+  -- Manifest (consumed by Rust tools: plat-verify, plat-doc, plat-skeleton, etc.)
   out (dir </> "manifest.json") (renderManifest (manifest architecture))
 
   putStrLn "done."
