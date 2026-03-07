@@ -35,7 +35,7 @@ library
     , containers >= 0.6
     , directory  >= 1.3
     , text       >= 2.0
-  hs-source-dirs: hs/src
+  hs-source-dirs: src-hs
   default-language: GHC2024
   default-extensions:
     OverloadedStrings
@@ -126,7 +126,7 @@ executable example-go-feature-sliced
 test-suite plat-test
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
-  hs-source-dirs:   hs/test
+  hs-source-dirs:   test-hs
   build-depends:
     , base       >= 4.18 && < 5
     , plat

@@ -38,16 +38,16 @@ mise タスクも利用可能 (`mise run build`, `mise run test` 等)。
 
 ## Adding a Validation Rule
 
-1. `hs/src/Plat/Check/Rules.hs` に data 型を定義
+1. `src-hs/Plat/Check/Rules.hs` に data 型を定義
 2. `PlatRule` instance を実装 (`ruleCode`, `checkDecl` or `checkArch`)
 3. `coreRules` リストに `SomeRule NewRule` を追加
-4. `hs/test/Main.hs` にテスト追加
+4. `test-hs/Main.hs` にテスト追加
 
 拡張固有ルールは各 `Ext/*.hs` で定義し、`{ext}Rules :: [SomeRule]` としてエクスポート。
 
 ## Adding an Extension
 
-1. `hs/src/Plat/Ext/NewExt.hs` を作成
+1. `src-hs/Plat/Ext/NewExt.hs` を作成
 2. `ExtId` を定義: `newext = extId "newext"`
 3. `MetaTag` を定義: `newextFoo = kind newext "foo"`
 4. Smart constructor: core コンストラクタ + `tagAs newextFoo` のラッパー
@@ -65,7 +65,7 @@ Meta DSL の4パターン:
 
 ## Adding a Generator
 
-`Architecture -> Text` 関数を `hs/src/Plat/Generate/` に追加。
+`Architecture -> Text` 関数を `src-hs/Plat/Generate/` に追加。
 `archDecls` を走査し、`declKind` / `declBody` / `declMeta` を読んで出力を構築する。
 
 ## Target Language Modules (Plat.Target.*)
@@ -77,7 +77,7 @@ Meta DSL の4パターン:
 
 ### 新しい Target 言語を追加するとき
 
-1. `hs/src/Plat/Target/NewLang.hs` を作成
+1. `src-hs/Plat/Target/NewLang.hs` を作成
 2. `LangConfig` 型を定義 (型マッピング、レイヤー→ディレクトリ対応)
 3. `TypeExpr -> Text` の型マッピングを実装
 4. `skeleton`: Model → struct/interface, Boundary → interface/trait, Operation → class/fn, Adapter → impl
@@ -93,7 +93,7 @@ Meta DSL の4パターン:
 
 ## Testing
 
-`hs/test/Main.hs` に全テストがフラットに配置されている。
+`test-hs/Main.hs` に全テストがフラットに配置されている。
 テストフレームワークは未使用 (base のみ)。`assertEqual` / `assertBool` は自前実装。
 
 ## Reference

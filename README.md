@@ -198,7 +198,7 @@ cargo install --git <plat-repo-url> plat-verify
 ローカルからビルドする場合:
 
 ```bash
-cargo install --path path/to/plat/verify
+cargo install --path path/to/plat
 ```
 
 プロジェクトルートに設定ファイルを作成:
