@@ -103,6 +103,7 @@ mod tests {
 
     fn make_manifest(declarations: Vec<Declaration>, bindings: Vec<Binding>) -> Manifest {
         Manifest {
+            schema_version: "0.6".to_string(),
             name: "test".to_string(),
             layers: vec![
                 Layer {
@@ -126,8 +127,10 @@ mod tests {
                     ],
                 },
             ],
+            type_aliases: vec![],
             declarations,
             bindings,
+            meta: Default::default(),
         }
     }
 
@@ -136,6 +139,7 @@ mod tests {
             name: name.to_string(),
             kind: DeclKind::Model,
             layer: Some(layer.to_string()),
+            paths: vec![],
             fields: fields
                 .into_iter()
                 .map(|(n, t)| Field {
@@ -144,10 +148,13 @@ mod tests {
                 })
                 .collect(),
             ops: vec![],
+            inputs: vec![],
+            outputs: vec![],
             needs: vec![],
             implements: None,
             injects: vec![],
             entries: vec![],
+            meta: Default::default(),
         }
     }
 
@@ -156,12 +163,16 @@ mod tests {
             name: name.to_string(),
             kind: DeclKind::Boundary,
             layer: Some(layer.to_string()),
+            paths: vec![],
             fields: vec![],
             ops,
+            inputs: vec![],
+            outputs: vec![],
             needs: vec![],
             implements: None,
             injects: vec![],
             entries: vec![],
+            meta: Default::default(),
         }
     }
 
@@ -170,12 +181,16 @@ mod tests {
             name: name.to_string(),
             kind: DeclKind::Operation,
             layer: Some(layer.to_string()),
+            paths: vec![],
             fields: vec![],
             ops: vec![],
+            inputs: vec![],
+            outputs: vec![],
             needs: needs.into_iter().map(|s| s.to_string()).collect(),
             implements: None,
             injects: vec![],
             entries: vec![],
+            meta: Default::default(),
         }
     }
 

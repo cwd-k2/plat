@@ -14,7 +14,7 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
             DeclKind::Boundary => ("E002", Severity::Error, Some(TypeDefKind::Interface)),
             DeclKind::Adapter => ("E003", Severity::Error, Some(TypeDefKind::Struct)),
             DeclKind::Operation => ("E004", Severity::Warning, None),
-            DeclKind::Compose => continue, // compose is not a source-level construct
+            DeclKind::Compose | DeclKind::Unknown => continue,
         };
 
         let expected_name = naming::convert(&decl.name, config.type_case());
@@ -39,7 +39,7 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
                         DeclKind::Model | DeclKind::Adapter => "struct",
                         DeclKind::Boundary => "interface/trait",
                         DeclKind::Operation => "struct/function",
-                        DeclKind::Compose => unreachable!(),
+                        DeclKind::Compose | DeclKind::Unknown => unreachable!(),
                     },
                 )),
                 source_file: None,

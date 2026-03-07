@@ -217,7 +217,7 @@ fn generate_go(cfg: &Config, manifest: &Manifest) -> Vec<(String, String)> {
             DeclKind::Boundary => files.extend(go_boundary(cfg, decl)),
             DeclKind::Operation => files.extend(go_operation(cfg, manifest, decl)),
             DeclKind::Adapter => files.extend(go_adapter(cfg, manifest, decl)),
-            DeclKind::Compose => {}
+            DeclKind::Compose | DeclKind::Unknown => {}
         }
     }
     files
@@ -454,7 +454,7 @@ fn generate_ts(cfg: &Config, manifest: &Manifest) -> Vec<(String, String)> {
             DeclKind::Boundary => files.extend(ts_boundary(cfg, decl)),
             DeclKind::Operation => files.extend(ts_operation(cfg, manifest, decl)),
             DeclKind::Adapter => files.extend(ts_adapter(cfg, manifest, decl)),
-            DeclKind::Compose => {}
+            DeclKind::Compose | DeclKind::Unknown => {}
         }
     }
     files
@@ -659,7 +659,7 @@ fn generate_rust(cfg: &Config, manifest: &Manifest) -> Vec<(String, String)> {
     let mut layer_decls: HashMap<String, Vec<&Declaration>> = HashMap::new();
 
     for decl in &manifest.declarations {
-        if decl.kind == DeclKind::Compose {
+        if matches!(decl.kind, DeclKind::Compose | DeclKind::Unknown) {
             continue;
         }
         let dir = rust_layer_dir(cfg, decl);
@@ -670,7 +670,7 @@ fn generate_rust(cfg: &Config, manifest: &Manifest) -> Vec<(String, String)> {
             DeclKind::Boundary => files.extend(rust_boundary(cfg, decl)),
             DeclKind::Operation => files.extend(rust_operation(cfg, manifest, decl)),
             DeclKind::Adapter => files.extend(rust_adapter(cfg, manifest, decl)),
-            DeclKind::Compose => {}
+            DeclKind::Compose | DeclKind::Unknown => {}
         }
     }
 

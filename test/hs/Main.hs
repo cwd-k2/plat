@@ -13,6 +13,7 @@ import Plat.Ext.DBC
 import Plat.Ext.Flow
 import Plat.Ext.Events
 import Plat.Ext.Modules
+import Plat.Verify.Manifest
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -232,6 +233,8 @@ main = do
     , section "Ext.Events"        testEvents
     , section "Ext.Modules"       testModules
     , section "Meta-programming"  testMetaProgramming
+    , section "V009/W003"         testNewRules
+    , section "Manifest"          testManifest
     ]
   let total   = sum (map fst results)
       failed  = sum (map snd results)
@@ -582,4 +585,78 @@ testModules = do
         lookupMeta "plat-modules:import:Order" payD == Just "OrderDomain")
     , ("payment exposes gateway",
         lookupMeta "plat-modules:expose:PaymentGateway" payD == Just "PaymentGateway")
+    ]
+
+----------------------------------------------------------------------
+-- V009 / W003 tests
+----------------------------------------------------------------------
+
+testNewRules :: TestResult
+testNewRules = do
+  let dupArch = arch "dup-test" $ do
+        useLayers [core]
+        registerType "UUID"
+        declare order
+        declare order  -- duplicate!
+      r1 = check dupArch
+  T.putStrLn (prettyCheck r1)
+
+  let multiImplAdapter = adapter "MultiAdapter" infra $ do
+        implements orderRepo
+        implements paymentGateway
+      multiArch = arch "multi-impl" $ do
+        useLayers [core, interface, infra]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+        declare paymentGateway
+        declare multiImplAdapter
+      r2 = check multiArch
+  T.putStrLn (prettyCheck r2)
+
+  runTests
+    [ ("V009: duplicate name",
+        any (\d -> dCode d == "V009") (violations r1))
+    , ("W003: multiple implements",
+        any (\d -> dCode d == "W003") (warnings r2))
+    , ("W003: mentions both boundaries",
+        any (\d -> dCode d == "W003" && "OrderRepository" `T.isInfixOf` dMessage d
+                                     && "PaymentGateway" `T.isInfixOf` dMessage d) (warnings r2))
+    , ("multi-implements last wins",
+        findImplements (declBody (decl multiImplAdapter)) == Just "PaymentGateway")
+    ]
+
+----------------------------------------------------------------------
+-- Manifest round-trip tests
+----------------------------------------------------------------------
+
+testManifest :: TestResult
+testManifest = do
+  let m = manifest coreArch
+      json = renderManifest m
+      parsed = parseManifest json
+  runTests
+    [ ("round-trip parses",       parsed /= Nothing)
+    , ("round-trip name",         fmap mName parsed == Just "order-service")
+    , ("round-trip version",      fmap mVersion parsed == Just "0.6")
+    , ("round-trip layers",       fmap (length . mLayers) parsed == Just 4)
+    , ("round-trip decls",        fmap (length . mDecls) parsed == Just (length (archDecls coreArch)))
+    , ("round-trip bindings",     fmap (length . mBindings) parsed == Just 2)
+    , ("type aliases present",    not (null (mTypeAliases m)))
+    , ("type alias name",         mtaName (head (mTypeAliases m)) == "Money")
+    , ("type alias type",         mtaType (head (mTypeAliases m)) == "Decimal")
+    , ("decl has meta",
+        let statusDecl = head [d | d <- mDecls m, mdName d == "OrderStatus"]
+        in  not (null (mdMeta statusDecl)))
+    , ("decl has paths",
+        let orderDecl = head [d | d <- mDecls m, mdName d == "Order"]
+        in  mdPaths orderDecl == ["domain/order.go"])
+    , ("operation has inputs",
+        let poDecl = head [d | d <- mDecls m, mdName d == "PlaceOrder"]
+        in  not (null (mdInputs poDecl)))
+    , ("operation has outputs",
+        let poDecl = head [d | d <- mDecls m, mdName d == "PlaceOrder"]
+        in  not (null (mdOutputs poDecl)))
+    , ("schema_version in json",  "schema_version" `T.isInfixOf` json)
+    , ("type_aliases in json",    "type_aliases" `T.isInfixOf` json)
     ]

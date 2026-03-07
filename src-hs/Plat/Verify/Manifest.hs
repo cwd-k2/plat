@@ -3,6 +3,9 @@
 -- Generates a language-agnostic JSON manifest describing the expected
 -- structure of an implementation. External tools can compare this
 -- against actual source code.
+--
+-- Uses @aeson@ for correct JSON serialization. Both 'ToJSON' and
+-- 'FromJSON' instances are provided for round-trip safety.
 module Plat.Verify.Manifest
   ( Manifest (..)
   , ManifestDecl (..)
@@ -10,12 +13,20 @@ module Plat.Verify.Manifest
   , ManifestField (..)
   , ManifestBinding (..)
   , ManifestLayer (..)
+  , ManifestTypeAlias (..)
   , manifest
   , renderManifest
+  , parseManifest
   ) where
 
+import Data.Aeson (ToJSON(..), FromJSON(..), object, (.=), (.:), (.:?), (.!=), withObject)
+import Data.Aeson.Encode.Pretty (encodePretty)
+import qualified Data.Aeson as Aeson
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 
 import Plat.Core.Types
 
@@ -23,82 +34,219 @@ import Plat.Core.Types
 -- Manifest types
 ----------------------------------------------------------------------
 
--- | アーキテクチャ全体のマニフェスト。JSON にレンダリングして外部ツールに渡す。
 data Manifest = Manifest
-  { mName     :: Text              -- ^ アーキテクチャ名
-  , mLayers   :: [ManifestLayer]   -- ^ レイヤー定義一覧
-  , mDecls    :: [ManifestDecl]    -- ^ 宣言一覧
-  , mBindings :: [ManifestBinding] -- ^ boundary-adapter のバインディング一覧
+  { mVersion     :: Text
+  , mName        :: Text
+  , mLayers      :: [ManifestLayer]
+  , mTypeAliases :: [ManifestTypeAlias]
+  , mDecls       :: [ManifestDecl]
+  , mBindings    :: [ManifestBinding]
+  , mMeta        :: [(Text, Text)]
   } deriving stock (Show, Eq)
 
--- | レイヤー定義。名前と依存先レイヤーのリスト。
 data ManifestLayer = ManifestLayer
-  { mlName :: Text   -- ^ レイヤー名
-  , mlDeps :: [Text] -- ^ 依存先レイヤー名
+  { mlName :: Text
+  , mlDeps :: [Text]
   } deriving stock (Show, Eq)
 
--- | 宣言のマニフェスト表現。言語非依存な中間形式。
+data ManifestTypeAlias = ManifestTypeAlias
+  { mtaName :: Text
+  , mtaType :: Text
+  } deriving stock (Show, Eq)
+
 data ManifestDecl = ManifestDecl
-  { mdName       :: Text            -- ^ 宣言名
-  , mdKind       :: Text            -- ^ 宣言種別 (@"model"@, @"boundary"@ 等)
-  , mdLayer      :: Maybe Text      -- ^ 所属レイヤー
-  , mdFields     :: [ManifestField] -- ^ フィールド一覧
-  , mdOps        :: [ManifestOp]    -- ^ オペレーション一覧
-  , mdNeeds      :: [Text]          -- ^ 依存する boundary 名
-  , mdImplements :: Maybe Text      -- ^ 実装対象の boundary 名
-  , mdInjects    :: [ManifestField] -- ^ 注入される依存 (adapter)
-  , mdEntries    :: [Text]          -- ^ エントリポイント名 (compose)
+  { mdName       :: Text
+  , mdKind       :: Text
+  , mdLayer      :: Maybe Text
+  , mdPaths      :: [FilePath]
+  , mdFields     :: [ManifestField]
+  , mdOps        :: [ManifestOp]
+  , mdInputs     :: [ManifestField]
+  , mdOutputs    :: [ManifestField]
+  , mdNeeds      :: [Text]
+  , mdImplements :: Maybe Text
+  , mdInjects    :: [ManifestField]
+  , mdEntries    :: [Text]
+  , mdMeta       :: [(Text, Text)]
   } deriving stock (Show, Eq)
 
--- | フィールドの名前と型。
 data ManifestField = ManifestField
-  { mfName :: Text -- ^ フィールド名
-  , mfType :: Text -- ^ 型 (言語非依存テキスト)
+  { mfName :: Text
+  , mfType :: Text
   } deriving stock (Show, Eq)
 
--- | オペレーション (入力パラメータと出力パラメータ)。
 data ManifestOp = ManifestOp
-  { moName    :: Text            -- ^ オペレーション名
-  , moInputs  :: [ManifestField] -- ^ 入力パラメータ
-  , moOutputs :: [ManifestField] -- ^ 出力パラメータ
+  { moName    :: Text
+  , moInputs  :: [ManifestField]
+  , moOutputs :: [ManifestField]
   } deriving stock (Show, Eq)
 
--- | boundary と adapter のバインディング。
 data ManifestBinding = ManifestBinding
-  { mbBoundary :: Text -- ^ boundary 名
-  , mbAdapter  :: Text -- ^ adapter 名
+  { mbBoundary :: Text
+  , mbAdapter  :: Text
   } deriving stock (Show, Eq)
+
+----------------------------------------------------------------------
+-- ToJSON
+----------------------------------------------------------------------
+
+instance ToJSON Manifest where
+  toJSON m = object
+    [ "schema_version" .= mVersion m
+    , "name"           .= mName m
+    , "layers"         .= mLayers m
+    , "type_aliases"   .= mTypeAliases m
+    , "declarations"   .= mDecls m
+    , "bindings"       .= mBindings m
+    , "meta"           .= metaObject (mMeta m)
+    ]
+
+instance ToJSON ManifestLayer where
+  toJSON l = object
+    [ "name"    .= mlName l
+    , "depends" .= mlDeps l
+    ]
+
+instance ToJSON ManifestTypeAlias where
+  toJSON a = object
+    [ "name" .= mtaName a
+    , "type" .= mtaType a
+    ]
+
+instance ToJSON ManifestDecl where
+  toJSON d = object
+    [ "name"       .= mdName d
+    , "kind"       .= mdKind d
+    , "layer"      .= mdLayer d
+    , "paths"      .= mdPaths d
+    , "fields"     .= mdFields d
+    , "ops"        .= mdOps d
+    , "inputs"     .= mdInputs d
+    , "outputs"    .= mdOutputs d
+    , "needs"      .= mdNeeds d
+    , "implements" .= mdImplements d
+    , "injects"    .= mdInjects d
+    , "entries"    .= mdEntries d
+    , "meta"       .= metaObject (mdMeta d)
+    ]
+
+instance ToJSON ManifestField where
+  toJSON f = object
+    [ "name" .= mfName f
+    , "type" .= mfType f
+    ]
+
+instance ToJSON ManifestOp where
+  toJSON o = object
+    [ "name"    .= moName o
+    , "inputs"  .= moInputs o
+    , "outputs" .= moOutputs o
+    ]
+
+instance ToJSON ManifestBinding where
+  toJSON b = object
+    [ "boundary" .= mbBoundary b
+    , "adapter"  .= mbAdapter b
+    ]
+
+metaObject :: [(Text, Text)] -> Aeson.Value
+metaObject = toJSON . Map.fromList
+
+----------------------------------------------------------------------
+-- FromJSON
+----------------------------------------------------------------------
+
+instance FromJSON Manifest where
+  parseJSON = withObject "Manifest" $ \o -> Manifest
+    <$> o .:? "schema_version" .!= "0.5"
+    <*> o .:  "name"
+    <*> o .:  "layers"
+    <*> o .:? "type_aliases" .!= []
+    <*> o .:  "declarations"
+    <*> o .:? "bindings" .!= []
+    <*> (Map.toList <$> o .:? "meta" .!= Map.empty)
+
+instance FromJSON ManifestLayer where
+  parseJSON = withObject "ManifestLayer" $ \o -> ManifestLayer
+    <$> o .: "name"
+    <*> o .:? "depends" .!= []
+
+instance FromJSON ManifestTypeAlias where
+  parseJSON = withObject "ManifestTypeAlias" $ \o -> ManifestTypeAlias
+    <$> o .: "name"
+    <*> o .: "type"
+
+instance FromJSON ManifestDecl where
+  parseJSON = withObject "ManifestDecl" $ \o -> ManifestDecl
+    <$> o .:  "name"
+    <*> o .:  "kind"
+    <*> o .:? "layer"
+    <*> o .:? "paths" .!= []
+    <*> o .:? "fields" .!= []
+    <*> o .:? "ops" .!= []
+    <*> o .:? "inputs" .!= []
+    <*> o .:? "outputs" .!= []
+    <*> o .:? "needs" .!= []
+    <*> o .:? "implements"
+    <*> o .:? "injects" .!= []
+    <*> o .:? "entries" .!= []
+    <*> (Map.toList <$> o .:? "meta" .!= Map.empty)
+
+instance FromJSON ManifestField where
+  parseJSON = withObject "ManifestField" $ \o -> ManifestField
+    <$> o .: "name"
+    <*> o .: "type"
+
+instance FromJSON ManifestOp where
+  parseJSON = withObject "ManifestOp" $ \o -> ManifestOp
+    <$> o .: "name"
+    <*> o .:? "inputs" .!= []
+    <*> o .:? "outputs" .!= []
+
+instance FromJSON ManifestBinding where
+  parseJSON = withObject "ManifestBinding" $ \o -> ManifestBinding
+    <$> o .: "boundary"
+    <*> o .: "adapter"
 
 ----------------------------------------------------------------------
 -- Build manifest
 ----------------------------------------------------------------------
 
--- | 'Architecture' から 'Manifest' を構築する。
 manifest :: Architecture -> Manifest
-manifest arch = Manifest
-  { mName     = archName arch
-  , mLayers   = map toManifestLayer (archLayers arch)
-  , mDecls    = map toManifestDecl (archDecls arch)
-  , mBindings = concatMap extractBindings (archDecls arch)
+manifest a = Manifest
+  { mVersion     = "0.6"
+  , mName        = archName a
+  , mLayers      = map toManifestLayer (archLayers a)
+  , mTypeAliases = map toManifestTypeAlias (archTypes a)
+  , mDecls       = map toManifestDecl (archDecls a)
+  , mBindings    = concatMap extractBindings (archDecls a)
+  , mMeta        = archMeta a
   }
 
 toManifestLayer :: LayerDef -> ManifestLayer
 toManifestLayer ly = ManifestLayer (layerName ly) (layerDeps ly)
+
+toManifestTypeAlias :: TypeAlias -> ManifestTypeAlias
+toManifestTypeAlias ta = ManifestTypeAlias (aliasName ta) (renderTE (aliasType ta))
 
 toManifestDecl :: Declaration -> ManifestDecl
 toManifestDecl d = ManifestDecl
   { mdName       = declName d
   , mdKind       = kindText (declKind d)
   , mdLayer      = declLayer d
+  , mdPaths      = declPaths d
   , mdFields     = [ManifestField n (renderTE t) | Field n t <- declBody d]
   , mdOps        = [ManifestOp n
                       [ManifestField pn (renderTE pt) | Param pn pt <- ins]
                       [ManifestField pn (renderTE pt) | Param pn pt <- outs]
                    | Op n ins outs <- declBody d]
+  , mdInputs     = [ManifestField n (renderTE t) | Input n t <- declBody d]
+  , mdOutputs    = [ManifestField n (renderTE t) | Output n t <- declBody d]
   , mdNeeds      = declNeeds d
   , mdImplements = findImplements (declBody d)
   , mdInjects    = [ManifestField n (renderTE t) | Inject n t <- declBody d]
   , mdEntries    = [n | Entry n <- declBody d]
+  , mdMeta       = declMeta d
   }
 
 extractBindings :: Declaration -> [ManifestBinding]
@@ -131,61 +279,13 @@ renderTE (TGeneric name args) = name <> "<" <> T.intercalate ", " (map renderTE 
 renderTE (TNullable t) = renderTE t <> "?"
 
 ----------------------------------------------------------------------
--- Render manifest as JSON
+-- JSON rendering / parsing
 ----------------------------------------------------------------------
 
 -- | 'Manifest' を JSON テキストにレンダリングする。
 renderManifest :: Manifest -> Text
-renderManifest m = T.unlines
-  [ "{"
-  , "  \"name\": " <> jsonStr (mName m) <> ","
-  , "  \"layers\": ["
-  , T.intercalate ",\n" (map renderLayer (mLayers m))
-  , "  ],"
-  , "  \"declarations\": ["
-  , T.intercalate ",\n" (map renderDecl (mDecls m))
-  , "  ],"
-  , "  \"bindings\": ["
-  , T.intercalate ",\n" (map renderBinding (mBindings m))
-  , "  ]"
-  , "}"
-  ]
+renderManifest m = TL.toStrict (TLE.decodeUtf8 (encodePretty m)) <> "\n"
 
-renderLayer :: ManifestLayer -> Text
-renderLayer ly = "    { \"name\": " <> jsonStr (mlName ly)
-  <> ", \"depends\": [" <> T.intercalate ", " (map jsonStr (mlDeps ly)) <> "] }"
-
-renderDecl :: ManifestDecl -> Text
-renderDecl d = T.unlines
-  [ "    {"
-  , "      \"name\": " <> jsonStr (mdName d) <> ","
-  , "      \"kind\": " <> jsonStr (mdKind d) <> ","
-  , "      \"layer\": " <> maybe "null" jsonStr (mdLayer d) <> ","
-  , "      \"fields\": [" <> T.intercalate ", " (map renderField (mdFields d)) <> "],"
-  , "      \"ops\": [" <> T.intercalate ", " (map renderOp (mdOps d)) <> "],"
-  , "      \"needs\": [" <> T.intercalate ", " (map jsonStr (mdNeeds d)) <> "],"
-  , "      \"implements\": " <> maybe "null" jsonStr (mdImplements d) <> ","
-  , "      \"injects\": [" <> T.intercalate ", " (map renderField (mdInjects d)) <> "],"
-  , "      \"entries\": [" <> T.intercalate ", " (map jsonStr (mdEntries d)) <> "]"
-  , "    }"
-  ]
-
-renderField :: ManifestField -> Text
-renderField f = "{\"name\": " <> jsonStr (mfName f) <> ", \"type\": " <> jsonStr (mfType f) <> "}"
-
-renderOp :: ManifestOp -> Text
-renderOp o = "{\"name\": " <> jsonStr (moName o)
-  <> ", \"inputs\": [" <> T.intercalate ", " (map renderField (moInputs o))
-  <> "], \"outputs\": [" <> T.intercalate ", " (map renderField (moOutputs o)) <> "]}"
-
-renderBinding :: ManifestBinding -> Text
-renderBinding b = "    {\"boundary\": " <> jsonStr (mbBoundary b)
-  <> ", \"adapter\": " <> jsonStr (mbAdapter b) <> "}"
-
-jsonStr :: Text -> Text
-jsonStr t = "\"" <> T.concatMap escape t <> "\""
-  where
-    escape '"'  = "\\\""
-    escape '\\' = "\\\\"
-    escape '\n' = "\\n"
-    escape c    = T.singleton c
+-- | JSON テキストから 'Manifest' をパースする。
+parseManifest :: Text -> Maybe Manifest
+parseManifest t = Aeson.decode (TLE.encodeUtf8 (TL.fromStrict t))

@@ -1,4 +1,4 @@
--- | コア検証ルール群 (V001-V008, W001-W002)。
+-- | コア検証ルール群 (V001-V009, W001-W003)。
 --
 -- 'coreRules' が全ルールを含む標準セット。
 -- 個別ルールを選択的に組み合わせることも可能。
@@ -15,6 +15,8 @@ module Plat.Check.Rules
   , BindTargetRule (..)
   , UnresolvedBoundaryRule (..)
   , UndefinedTypeRule (..)
+  , UniqueNameRule (..)
+  , MultipleImplementsRule (..)
   ) where
 
 import Data.Text (Text)
@@ -43,6 +45,8 @@ coreRules =
   , SomeRule BindTargetRule
   , SomeRule UnresolvedBoundaryRule
   , SomeRule UndefinedTypeRule
+  , SomeRule UniqueNameRule
+  , SomeRule MultipleImplementsRule
   ]
 
 ----------------------------------------------------------------------
@@ -327,3 +331,42 @@ collectTypeRefs d = concatMap itemRefs (declBody d)
     typeRefs (TRef name)      = [name]
     typeRefs (TGeneric _ args) = concatMap typeRefs args
     typeRefs (TNullable t)    = typeRefs t
+
+----------------------------------------------------------------------
+-- V009: 宣言名の一意性
+----------------------------------------------------------------------
+
+-- | V009: 同名の宣言が複数存在する場合の検出。
+data UniqueNameRule = UniqueNameRule
+instance PlatRule UniqueNameRule where
+  ruleCode _ = "V009"
+  checkArch _ arch =
+    [ Diagnostic Error "V009"
+        ("duplicate declaration name: " <> name)
+        name Nothing
+    | (name, count) <- Map.toList nameCounts
+    , count > (1 :: Int)
+    ]
+    where
+      nameCounts = Map.fromListWith (+)
+        [(declName d, 1) | d <- archDecls arch]
+
+----------------------------------------------------------------------
+-- W003: adapter の多重 implements
+----------------------------------------------------------------------
+
+-- | W003: adapter に複数の @implements@ が存在する場合の警告。
+-- 最後の値のみが有効になる (last-write-wins)。
+data MultipleImplementsRule = MultipleImplementsRule
+instance PlatRule MultipleImplementsRule where
+  ruleCode _ = "W003"
+  checkDecl _ _ d
+    | declKind d == Adapter
+    , let impls = [name | Implements name <- declBody d]
+    , length impls > 1
+    = [ Diagnostic Warning "W003"
+          ("adapter " <> declName d <> " has multiple implements: "
+           <> T.intercalate ", " impls <> "; only the last is used")
+          (declName d) Nothing
+      ]
+    | otherwise = []

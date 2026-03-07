@@ -117,26 +117,37 @@ mod tests {
 
     fn make_manifest(declarations: Vec<Declaration>) -> Manifest {
         Manifest {
+            schema_version: "0.6".to_string(),
             name: "test".to_string(),
             layers: vec![],
+            type_aliases: vec![],
             declarations,
             bindings: vec![],
+            meta: Default::default(),
+        }
+    }
+
+    fn test_decl(name: &str, kind: DeclKind, fields: Vec<Field>) -> Declaration {
+        Declaration {
+            name: name.to_string(),
+            kind,
+            layer: None,
+            paths: vec![],
+            fields,
+            ops: vec![],
+            inputs: vec![],
+            outputs: vec![],
+            needs: vec![],
+            implements: None,
+            injects: vec![],
+            entries: vec![],
+            meta: Default::default(),
         }
     }
 
     #[test]
     fn t001_undeclared_source_type() {
-        let manifest = make_manifest(vec![Declaration {
-            name: "Order".to_string(),
-            kind: DeclKind::Model,
-            layer: None,
-            fields: vec![],
-            ops: vec![],
-            needs: vec![],
-            implements: None,
-            injects: vec![],
-            entries: vec![],
-        }]);
+        let manifest = make_manifest(vec![test_decl("Order", DeclKind::Model, vec![])]);
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
@@ -156,28 +167,8 @@ mod tests {
     #[test]
     fn t001_all_types_declared() {
         let manifest = make_manifest(vec![
-            Declaration {
-                name: "Order".to_string(),
-                kind: DeclKind::Model,
-                layer: None,
-                fields: vec![],
-                ops: vec![],
-                needs: vec![],
-                implements: None,
-                injects: vec![],
-                entries: vec![],
-            },
-            Declaration {
-                name: "OrderRepo".to_string(),
-                kind: DeclKind::Boundary,
-                layer: None,
-                fields: vec![],
-                ops: vec![],
-                needs: vec![],
-                implements: None,
-                injects: vec![],
-                entries: vec![],
-            },
+            test_decl("Order", DeclKind::Model, vec![]),
+            test_decl("OrderRepo", DeclKind::Boundary, vec![]),
         ]);
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
@@ -194,26 +185,14 @@ mod tests {
 
     #[test]
     fn t002_extra_field() {
-        let manifest = make_manifest(vec![Declaration {
-            name: "Order".to_string(),
-            kind: DeclKind::Model,
-            layer: None,
-            fields: vec![
-                Field {
-                    name: "Id".to_string(),
-                    typ: "String".to_string(),
-                },
-                Field {
-                    name: "Total".to_string(),
-                    typ: "Float".to_string(),
-                },
+        let manifest = make_manifest(vec![test_decl(
+            "Order",
+            DeclKind::Model,
+            vec![
+                Field { name: "Id".to_string(), typ: "String".to_string() },
+                Field { name: "Total".to_string(), typ: "Float".to_string() },
             ],
-            ops: vec![],
-            needs: vec![],
-            implements: None,
-            injects: vec![],
-            entries: vec![],
-        }]);
+        )]);
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
@@ -233,22 +212,11 @@ mod tests {
 
     #[test]
     fn t002_no_extra_fields() {
-        let manifest = make_manifest(vec![Declaration {
-            name: "Order".to_string(),
-            kind: DeclKind::Model,
-            layer: None,
-            fields: vec![
-                Field {
-                    name: "Id".to_string(),
-                    typ: "String".to_string(),
-                },
-            ],
-            ops: vec![],
-            needs: vec![],
-            implements: None,
-            injects: vec![],
-            entries: vec![],
-        }]);
+        let manifest = make_manifest(vec![test_decl(
+            "Order",
+            DeclKind::Model,
+            vec![Field { name: "Id".to_string(), typ: "String".to_string() }],
+        )]);
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
