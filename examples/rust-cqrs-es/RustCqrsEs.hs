@@ -69,6 +69,30 @@ transferCompleted = event "TransferCompleted" dom $ do
   field "to"     (ref accountId)
   field "amount" (ref money)
 
+accountClosed :: Decl 'Model
+accountClosed = event "AccountClosed" dom $ do
+  field "accountId" (ref accountId)
+  field "closedAt"  dateTime
+  field "reason"    string
+
+accountFrozen :: Decl 'Model
+accountFrozen = event "AccountFrozen" dom $ do
+  field "accountId" (ref accountId)
+  field "frozenAt"  dateTime
+  field "reason"    string
+
+accountUnfrozen :: Decl 'Model
+accountUnfrozen = event "AccountUnfrozen" dom $ do
+  field "accountId" (ref accountId)
+  field "unfrozenAt" dateTime
+
+interestAccrued :: Decl 'Model
+interestAccrued = event "InterestAccrued" dom $ do
+  field "accountId" (ref accountId)
+  field "amount"    (ref money)
+  field "balance"   (ref money)
+  field "rate"      decimal
+
 ----------------------------------------------------------------------
 -- Domain: Aggregate
 ----------------------------------------------------------------------
@@ -83,6 +107,30 @@ account = aggregate "Account" dom $ do
   apply_ accountOpened
   apply_ moneyDeposited
   apply_ moneyWithdrawn
+  apply_ accountClosed
+  apply_ accountFrozen
+  apply_ accountUnfrozen
+  apply_ interestAccrued
+
+----------------------------------------------------------------------
+-- Domain: Value Objects (Statements)
+----------------------------------------------------------------------
+
+statementEntry :: Decl 'Model
+statementEntry = value "StatementEntry" dom $ do
+  field "date"           dateTime
+  field "description"    string
+  field "amount"         (ref money)
+  field "runningBalance" (ref money)
+
+statement :: Decl 'Model
+statement = value "Statement" dom $ do
+  field "accountId"      (ref accountId)
+  field "periodStart"    dateTime
+  field "periodEnd"      dateTime
+  field "openingBalance" (ref money)
+  field "closingBalance" (ref money)
+  field "entries"        (list (ref statementEntry))
 
 ----------------------------------------------------------------------
 -- Domain: Policies
@@ -106,6 +154,11 @@ eventStore :: Decl 'Boundary
 eventStore = boundary "EventStore" dom $ do
   op "append"  ["id" .: ref accountId, "events" .: list any_]  ["err" .: error_]
   op "loadAll" ["id" .: ref accountId] ["events" .: list any_, "err" .: error_]
+
+statementStore :: Decl 'Boundary
+statementStore = boundary "StatementStore" dom $ do
+  op "save"          ["statement" .: ref statement]   ["err" .: error_]
+  op "findByAccount" ["accountId" .: ref accountId]   ["statements" .: list (ref statement), "err" .: error_]
 
 ----------------------------------------------------------------------
 -- Commands (write side)
@@ -140,6 +193,32 @@ withdrawMoney = command "WithdrawMoney" app $ do
   needs eventStore
   emit moneyWithdrawn
 
+closeAccount :: Decl 'Operation
+closeAccount = command "CloseAccount" app $ do
+  input  "accountId" (ref accountId)
+  input  "reason"    string
+  output "err"       error_
+  needs accountRepo
+  needs eventStore
+  emit accountClosed
+
+freezeAccount :: Decl 'Operation
+freezeAccount = command "FreezeAccount" app $ do
+  input  "accountId" (ref accountId)
+  input  "reason"    string
+  output "err"       error_
+  needs accountRepo
+  needs eventStore
+  emit accountFrozen
+
+unfreezeAccount :: Decl 'Operation
+unfreezeAccount = command "UnfreezeAccount" app $ do
+  input  "accountId" (ref accountId)
+  output "err"       error_
+  needs accountRepo
+  needs eventStore
+  emit accountUnfrozen
+
 ----------------------------------------------------------------------
 -- Queries (read side)
 ----------------------------------------------------------------------
@@ -157,6 +236,22 @@ getHistory_ = query "GetTransactionHistory" app $ do
   output "events"    (list any_)
   output "err"       error_
   needs eventStore
+
+getStatement :: Decl 'Operation
+getStatement = query "GetStatement" app $ do
+  input  "accountId"   (ref accountId)
+  input  "periodStart" dateTime
+  input  "periodEnd"   dateTime
+  output "statement"   (ref statement)
+  output "err"         error_
+  needs eventStore
+  needs statementStore
+
+listAccounts :: Decl 'Operation
+listAccounts = query "ListAccounts" app $ do
+  output "accounts" (list (ref account))
+  output "err"      error_
+  needs accountRepo
 
 ----------------------------------------------------------------------
 -- Flow: Transfer (saga / orchestration)
@@ -190,6 +285,16 @@ onWithdrawn = on_ "OnMoneyWithdrawn" moneyWithdrawn app $ do
   output "err" error_
   tagAs flowProjection
 
+onAccountClosed :: Decl 'Operation
+onAccountClosed = on_ "OnAccountClosed" accountClosed app $ do
+  output "err" error_
+  tagAs flowProjection
+
+onInterestAccrued :: Decl 'Operation
+onInterestAccrued = on_ "OnInterestAccrued" interestAccrued app $ do
+  output "err" error_
+  tagAs flowProjection
+
 ----------------------------------------------------------------------
 -- Infrastructure Adapters
 ----------------------------------------------------------------------
@@ -204,28 +309,41 @@ pgAccountRepo = adapter "PostgresAccountRepo" infra $ do
   implements accountRepo
   inject "pool" (ext "sqlx::PgPool")
 
+pgStatementStore :: Decl 'Adapter
+pgStatementStore = adapter "PostgresStatementStore" infra $ do
+  implements statementStore
+  inject "pool" (ext "sqlx::PgPool")
+
 ----------------------------------------------------------------------
 -- Wiring
 ----------------------------------------------------------------------
 
 wiring :: Decl 'Compose
 wiring = compose "BankAccountWiring" $ do
-  bind accountRepo pgAccountRepo
-  bind eventStore  pgEventStore
+  bind accountRepo    pgAccountRepo
+  bind eventStore     pgEventStore
+  bind statementStore pgStatementStore
 
   -- Commands
   entry openAccount
   entry depositMoney
   entry withdrawMoney
+  entry closeAccount
+  entry freezeAccount
+  entry unfreezeAccount
   entry transferMoney
 
   -- Queries
   entry getBalance
   entry getHistory_
+  entry getStatement
+  entry listAccounts
 
   -- Handlers
   entry onDeposited
   entry onWithdrawn
+  entry onAccountClosed
+  entry onInterestAccrued
 
 ----------------------------------------------------------------------
 -- Architecture
@@ -241,25 +359,37 @@ architecture = arch "bank-account-service" $ do
   declare accountId
   declare account
   declare withdrawalPolicy
+  declare statementEntry
+  declare statement
 
   -- Events
   declare accountOpened
   declare moneyDeposited
   declare moneyWithdrawn
   declare transferCompleted
+  declare accountClosed
+  declare accountFrozen
+  declare accountUnfrozen
+  declare interestAccrued
 
   -- Ports
   declare accountRepo
   declare eventStore
+  declare statementStore
 
   -- Commands
   declare openAccount
   declare depositMoney
   declare withdrawMoney
+  declare closeAccount
+  declare freezeAccount
+  declare unfreezeAccount
 
   -- Queries
   declare getBalance
   declare getHistory_
+  declare getStatement
+  declare listAccounts
 
   -- Flow
   declare transferMoney
@@ -267,10 +397,13 @@ architecture = arch "bank-account-service" $ do
   -- Event handlers
   declare onDeposited
   declare onWithdrawn
+  declare onAccountClosed
+  declare onInterestAccrued
 
   -- Infrastructure
   declare pgEventStore
   declare pgAccountRepo
+  declare pgStatementStore
 
   -- Wiring
   declare wiring

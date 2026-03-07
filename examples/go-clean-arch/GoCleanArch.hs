@@ -40,7 +40,7 @@ orderStatus :: Decl 'Model
 orderStatus = enum_ "OrderStatus" enterprise
   ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"]
 
--- Aggregate Root
+-- Aggregate Roots
 
 order :: Decl 'Model
 order = aggregate "Order" enterprise $ do
@@ -58,6 +58,45 @@ orderItem = value "OrderItem" enterprise $ do
   field "name"      string
   field "quantity"  int
   field "price"     (ref money)
+
+customer :: Decl 'Model
+customer = aggregate "Customer" enterprise $ do
+  field "id"        (customType "UUID")
+  field "name"      string
+  field "email"     string
+  field "phone"     string
+  field "address"   (ref address)
+  field "createdAt" dateTime
+
+customerStatus :: Decl 'Model
+customerStatus = enum_ "CustomerStatus" enterprise
+  ["Active", "Suspended", "Deleted"]
+
+-- Domain Models
+
+product_ :: Decl 'Model
+product_ = model "Product" enterprise $ do
+  field "id"          (customType "UUID")
+  field "name"        string
+  field "description" string
+  field "price"       (ref money)
+  field "categoryId"  string
+  field "stock"       int
+
+category :: Decl 'Model
+category = model "Category" enterprise $ do
+  field "id"          string
+  field "name"        string
+  field "description" string
+
+paymentRecord :: Decl 'Model
+paymentRecord = model "PaymentRecord" enterprise $ do
+  field "id"            (customType "UUID")
+  field "orderId"       (customType "UUID")
+  field "amount"        (ref money)
+  field "method"        string
+  field "status"        string
+  field "transactionId" string
 
 ----------------------------------------------------------------------
 -- Interface layer (ports)
@@ -78,6 +117,25 @@ paymentGateway = port "PaymentGateway" interface $ do
 notifier :: Decl 'Boundary
 notifier = port "OrderNotifier" interface $ do
   op "orderConfirmed" ["order" .: ref order] ["err" .: error_]
+
+customerRepo :: Decl 'Boundary
+customerRepo = port "CustomerRepository" interface $ do
+  op "save"        ["customer" .: ref customer] ["err" .: error_]
+  op "findById"    ["id" .: customType "UUID"] ["customer" .: ref customer, "err" .: error_]
+  op "findByEmail" ["email" .: string] ["customer" .: ref customer, "err" .: error_]
+  op "delete"      ["id" .: customType "UUID"] ["err" .: error_]
+
+productRepo :: Decl 'Boundary
+productRepo = port "ProductRepository" interface $ do
+  op "save"     ["product" .: ref product_] ["err" .: error_]
+  op "findById" ["id" .: customType "UUID"] ["product" .: ref product_, "err" .: error_]
+  op "findAll"  [] ["products" .: list (ref product_), "err" .: error_]
+  op "search"   ["query" .: string] ["products" .: list (ref product_), "err" .: error_]
+  op "delete"   ["id" .: customType "UUID"] ["err" .: error_]
+
+inventoryChecker :: Decl 'Boundary
+inventoryChecker = port "InventoryChecker" interface $ do
+  op "check" ["productId" .: customType "UUID", "quantity" .: int] ["available" .: bool, "err" .: error_]
 
 ----------------------------------------------------------------------
 -- Application layer (use cases)
@@ -113,6 +171,46 @@ listOrders = usecase "ListOrders" application $ do
   output "err"    error_
   needs orderRepo
 
+createCustomer :: Decl 'Operation
+createCustomer = usecase "CreateCustomer" application $ do
+  input  "customer" (ref customer)
+  output "err"      error_
+  needs customerRepo
+
+getCustomer :: Decl 'Operation
+getCustomer = usecase "GetCustomer" application $ do
+  input  "customerId" (customType "UUID")
+  output "customer"   (ref customer)
+  output "err"        error_
+  needs customerRepo
+
+updateCustomerAddress :: Decl 'Operation
+updateCustomerAddress = usecase "UpdateCustomerAddress" application $ do
+  input  "customerId" (customType "UUID")
+  input  "address"    (ref address)
+  output "err"        error_
+  needs customerRepo
+
+createProduct :: Decl 'Operation
+createProduct = usecase "CreateProduct" application $ do
+  input  "product" (ref product_)
+  output "err"     error_
+  needs productRepo
+
+getProduct :: Decl 'Operation
+getProduct = usecase "GetProduct" application $ do
+  input  "productId" (customType "UUID")
+  output "product"   (ref product_)
+  output "err"       error_
+  needs productRepo
+
+searchProducts :: Decl 'Operation
+searchProducts = usecase "SearchProducts" application $ do
+  input  "query"    string
+  output "products" (list (ref product_))
+  output "err"      error_
+  needs productRepo
+
 ----------------------------------------------------------------------
 -- Framework layer (adapters)
 ----------------------------------------------------------------------
@@ -129,6 +227,18 @@ emailNotifier :: Decl 'Adapter
 emailNotifier = impl_ "EmailNotifier" framework notifier $ do
   inject "mailer" (ext "smtp.Sender")
 
+pgCustomerRepo :: Decl 'Adapter
+pgCustomerRepo = impl_ "PostgresCustomerRepo" framework customerRepo $ do
+  inject "db" (ext "*sql.DB")
+
+pgProductRepo :: Decl 'Adapter
+pgProductRepo = impl_ "PostgresProductRepo" framework productRepo $ do
+  inject "db" (ext "*sql.DB")
+
+stubInventory :: Decl 'Adapter
+stubInventory = impl_ "StubInventory" framework inventoryChecker $ do
+  inject "db" (ext "*sql.DB")
+
 orderController :: Decl 'Adapter
 orderController = Http.controller "OrderController" framework $ do
   Http.route Http.POST "/orders"     placeOrder
@@ -142,9 +252,12 @@ orderController = Http.controller "OrderController" framework $ do
 
 wiring :: Decl 'Compose
 wiring = wire "OrderServiceWiring" $ do
-  bind orderRepo       pgOrderRepo
-  bind paymentGateway  stripePayment
-  bind notifier        emailNotifier
+  bind orderRepo         pgOrderRepo
+  bind paymentGateway    stripePayment
+  bind notifier          emailNotifier
+  bind customerRepo      pgCustomerRepo
+  bind productRepo       pgProductRepo
+  bind inventoryChecker  stubInventory
   entry orderController
 
 ----------------------------------------------------------------------
@@ -162,22 +275,39 @@ architecture = arch "order-service" $ do
   declare orderStatus
   declare order
   declare orderItem
+  declare customer
+  declare customerStatus
+  declare product_
+  declare category
+  declare paymentRecord
 
   -- Ports
   declare orderRepo
   declare paymentGateway
   declare notifier
+  declare customerRepo
+  declare productRepo
+  declare inventoryChecker
 
   -- Use cases
   declare placeOrder
   declare cancelOrder
   declare getOrder
   declare listOrders
+  declare createCustomer
+  declare getCustomer
+  declare updateCustomerAddress
+  declare createProduct
+  declare getProduct
+  declare searchProducts
 
   -- Adapters
   declare pgOrderRepo
   declare stripePayment
   declare emailNotifier
+  declare pgCustomerRepo
+  declare pgProductRepo
+  declare stubInventory
   declare orderController
 
   -- Wiring

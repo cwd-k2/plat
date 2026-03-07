@@ -1,8 +1,9 @@
 // Bank Account Service — Rust CQRS + Event Sourcing example.
 //
 // Wiring corresponds to: compose BankAccountWiring
-//   bind AccountRepository -> PostgresAccountRepo (here: InMemoryAccountRepo)
-//   bind EventStore        -> PostgresEventStore (here: InMemoryEventStore)
+//   bind AccountRepository  -> PostgresAccountRepo    (here: InMemoryAccountRepo)
+//   bind EventStore         -> PostgresEventStore     (here: InMemoryEventStore)
+//   bind StatementStore     -> PostgresStatementStore (here: InMemoryStatementStore)
 
 mod domain;
 mod command;
@@ -10,7 +11,7 @@ mod query;
 mod infrastructure;
 
 use domain::account::Money;
-use infrastructure::{InMemoryAccountRepo, InMemoryEventStore};
+use infrastructure::{InMemoryAccountRepo, InMemoryEventStore, InMemoryStatementStore};
 
 fn main() {
     println!("=== Rust CQRS + Event Sourcing: Bank Account Service ===\n");
@@ -18,6 +19,7 @@ fn main() {
     // --- Wiring: bind adapters ---
     let mut repo = InMemoryAccountRepo::default();
     let mut events = InMemoryEventStore::default();
+    let statements = InMemoryStatementStore::default();
 
     // --- Commands ---
 
@@ -83,5 +85,58 @@ fn main() {
     ) {
         Ok(_) => println!("Zero transfer succeeded (unexpected)"),
         Err(e) => println!("Guard: zero transfer -> {}", e),
+    }
+
+    // --- Account lifecycle ---
+
+    // Freeze Bob's account
+    command::freeze_account::execute(&mut repo, &mut events, &bob_id, "suspicious activity")
+        .expect("freeze Bob");
+    println!("\nFroze Bob's account");
+
+    // Attempt to freeze again (should fail)
+    match command::freeze_account::execute(&mut repo, &mut events, &bob_id, "double freeze") {
+        Ok(_) => println!("Double freeze succeeded (unexpected)"),
+        Err(e) => println!("Guard: double freeze -> {}", e),
+    }
+
+    // Unfreeze Bob's account
+    command::unfreeze_account::execute(&mut repo, &mut events, &bob_id)
+        .expect("unfreeze Bob");
+    println!("Unfroze Bob's account");
+
+    // Close Alice's account
+    command::close_account::execute(&mut repo, &mut events, &alice_id, "customer request")
+        .expect("close Alice");
+    println!("Closed Alice's account");
+
+    // Attempt to close again (should fail)
+    match command::close_account::execute(&mut repo, &mut events, &alice_id, "retry") {
+        Ok(_) => println!("Double close succeeded (unexpected)"),
+        Err(e) => println!("Guard: double close -> {}", e),
+    }
+
+    // --- List accounts ---
+
+    let all_accounts = query::list_accounts::execute(&repo)
+        .expect("list accounts");
+    println!("\nAll accounts ({}):", all_accounts.len());
+    for a in &all_accounts {
+        println!("  - {} (owner: {}, status: {}, balance: {})", a.id, a.owner, a.status, a.balance);
+    }
+
+    // --- Statements ---
+
+    let alice_stmts = query::get_statement::execute(&events, &statements, &alice_id)
+        .expect("get Alice statements");
+    println!("\nAlice statements: {} (none generated yet)", alice_stmts.len());
+
+    // --- Final event history ---
+
+    let bob_events = query::get_history::execute(&events, &bob_id)
+        .expect("get Bob history");
+    println!("\nBob event history ({} events):", bob_events.len());
+    for e in &bob_events {
+        println!("  - {}", e.event_type());
     }
 }

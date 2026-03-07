@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use crate::domain::account::{Account, AccountId};
 use crate::domain::event::DomainEvent;
+use crate::domain::statement::Statement;
 
-use super::{AccountRepository, EventStore};
+use super::{AccountRepository, EventStore, StatementStore};
 
 /// In-memory stub for concept verification.
 /// Corresponds to: adapter PostgresAccountRepo : infrastructure implements AccountRepository
@@ -28,6 +29,10 @@ impl AccountRepository for InMemoryAccountRepo {
     fn count(&self) -> usize {
         self.accounts.len()
     }
+
+    fn list_all(&self) -> Result<Vec<Account>, String> {
+        Ok(self.accounts.values().cloned().collect())
+    }
 }
 
 /// In-memory stub for concept verification.
@@ -48,5 +53,26 @@ impl EventStore for InMemoryEventStore {
 
     fn load_all(&self, id: &AccountId) -> Result<Vec<DomainEvent>, String> {
         Ok(self.streams.get(id).cloned().unwrap_or_default())
+    }
+}
+
+/// In-memory stub for concept verification.
+/// Corresponds to: adapter PostgresStatementStore : infrastructure implements StatementStore
+#[derive(Default, Clone)]
+pub struct InMemoryStatementStore {
+    statements: HashMap<AccountId, Vec<Statement>>,
+}
+
+impl StatementStore for InMemoryStatementStore {
+    fn save(&mut self, statement: Statement) -> Result<(), String> {
+        self.statements
+            .entry(statement.account_id.clone())
+            .or_default()
+            .push(statement);
+        Ok(())
+    }
+
+    fn find_by_account(&self, account_id: &AccountId) -> Result<Vec<Statement>, String> {
+        Ok(self.statements.get(account_id).cloned().unwrap_or_default())
     }
 }

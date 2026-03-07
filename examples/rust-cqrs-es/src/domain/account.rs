@@ -81,6 +81,18 @@ impl Account {
                 // Transfer events are applied to individual accounts
                 // via MoneyDeposited/MoneyWithdrawn.
             }
+            DomainEvent::AccountClosed { .. } => {
+                self.status = "closed".to_string();
+            }
+            DomainEvent::AccountFrozen { .. } => {
+                self.status = "frozen".to_string();
+            }
+            DomainEvent::AccountUnfrozen { .. } => {
+                self.status = "active".to_string();
+            }
+            DomainEvent::InterestAccrued { amount, .. } => {
+                self.balance.amount += amount.amount;
+            }
         }
         self.version += 1;
     }

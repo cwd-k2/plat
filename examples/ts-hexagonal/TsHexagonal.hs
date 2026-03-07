@@ -66,6 +66,40 @@ notification = model "Notification" dom $ do
   field "sentAt"     (nullable dateTime)
   field "status"     string
 
+scheduleStatus :: Decl 'Model
+scheduleStatus = enum_ "ScheduleStatus" dom ["Pending", "Executed", "Cancelled", "Failed"]
+
+schedule :: Decl 'Model
+schedule = model "Schedule" dom $ do
+  field "id"          string
+  field "recipientId" string
+  field "templateId"  string
+  field "vars"        (mapType string string)
+  field "priority"    (ref priority)
+  field "scheduledAt" dateTime
+  field "executedAt"  (nullable dateTime)
+  field "status"      (ref scheduleStatus)
+
+userPreference :: Decl 'Model
+userPreference = model "UserPreference" dom $ do
+  field "userId"           string
+  field "preferredChannel" (ref channel)
+  field "enabled"          bool
+  field "quietStart"       (nullable string)
+  field "quietEnd"         (nullable string)
+
+deliveryStatus :: Decl 'Model
+deliveryStatus = enum_ "DeliveryStatus" dom ["Pending", "Delivered", "Failed", "Bounced"]
+
+deliveryReport :: Decl 'Model
+deliveryReport = model "DeliveryReport" dom $ do
+  field "id"             string
+  field "notificationId" string
+  field "channel"        (ref channel)
+  field "status"         (ref deliveryStatus)
+  field "deliveredAt"    (nullable dateTime)
+  field "errorMessage"   (nullable string)
+
 ----------------------------------------------------------------------
 -- Ports (driven / driving)
 ----------------------------------------------------------------------
@@ -83,6 +117,23 @@ notificationLog :: Decl 'Boundary
 notificationLog = boundary "NotificationLog" port_ $ do
   op "record"  ["notification" .: ref notification] ["err" .: error_]
   op "history" ["recipientId" .: string] ["notifications" .: list (ref notification), "err" .: error_]
+
+scheduleStore :: Decl 'Boundary
+scheduleStore = boundary "ScheduleStore" port_ $ do
+  op "save"          ["schedule" .: ref schedule] ["err" .: error_]
+  op "findPending"   [] ["schedules" .: list (ref schedule), "err" .: error_]
+  op "markExecuted"  ["id" .: string] ["err" .: error_]
+  op "cancel"        ["id" .: string] ["err" .: error_]
+
+preferenceStore :: Decl 'Boundary
+preferenceStore = boundary "PreferenceStore" port_ $ do
+  op "findByUserId" ["userId" .: string] ["pref" .: ref userPreference, "err" .: error_]
+  op "save"         ["pref" .: ref userPreference] ["err" .: error_]
+
+deliveryTracker :: Decl 'Boundary
+deliveryTracker = boundary "DeliveryTracker" port_ $ do
+  op "track"     ["notification" .: ref notification, "channel" .: ref channel, "status" .: ref deliveryStatus] ["err" .: error_]
+  op "getReport" ["notificationId" .: string] ["report" .: ref deliveryReport, "err" .: error_]
 
 ----------------------------------------------------------------------
 -- Application (use cases)
@@ -119,6 +170,53 @@ getHistory = operation "GetNotificationHistory" app $ do
   output "err"         error_
   needs notificationLog
 
+scheduleNotification :: Decl 'Operation
+scheduleNotification = operation "ScheduleNotification" app $ do
+  input  "recipientId" string
+  input  "templateId"  string
+  input  "vars"        (mapType string string)
+  input  "priority"    (ref priority)
+  input  "scheduledAt" dateTime
+  output "scheduleId"  string
+  output "err"         error_
+  needs scheduleStore
+  needs templateStore
+
+processPendingSchedules :: Decl 'Operation
+processPendingSchedules = operation "ProcessPendingSchedules" app $ do
+  output "processed" int
+  output "failed"    int
+  output "err"       error_
+  needs scheduleStore
+  needs notificationSender
+  needs notificationLog
+
+cancelSchedule :: Decl 'Operation
+cancelSchedule = operation "CancelSchedule" app $ do
+  input  "scheduleId" string
+  output "err"        error_
+  needs scheduleStore
+
+getPreferences :: Decl 'Operation
+getPreferences = operation "GetPreferences" app $ do
+  input  "userId" string
+  output "pref"   (ref userPreference)
+  output "err"    error_
+  needs preferenceStore
+
+updatePreferences :: Decl 'Operation
+updatePreferences = operation "UpdatePreferences" app $ do
+  input  "pref" (ref userPreference)
+  output "err"  error_
+  needs preferenceStore
+
+getDeliveryReport :: Decl 'Operation
+getDeliveryReport = operation "GetDeliveryReport" app $ do
+  input  "notificationId" string
+  output "report"         (ref deliveryReport)
+  output "err"            error_
+  needs deliveryTracker
+
 ----------------------------------------------------------------------
 -- Adapters
 ----------------------------------------------------------------------
@@ -143,6 +241,20 @@ mongoNotificationLog = adapter "MongoNotificationLog" adp $ do
   implements notificationLog
   inject "db" (ext "mongodb.Db")
 
+inMemoryScheduleStore :: Decl 'Adapter
+inMemoryScheduleStore = adapter "InMemoryScheduleStore" adp $ do
+  implements scheduleStore
+  inject "store" (ext "Map")
+
+inMemoryPreferenceStore :: Decl 'Adapter
+inMemoryPreferenceStore = adapter "InMemoryPreferenceStore" adp $ do
+  implements preferenceStore
+  inject "store" (ext "Map")
+
+consoleDeliveryTracker :: Decl 'Adapter
+consoleDeliveryTracker = adapter "ConsoleDeliveryTracker" adp $ do
+  implements deliveryTracker
+
 ----------------------------------------------------------------------
 -- Wiring
 ----------------------------------------------------------------------
@@ -152,9 +264,18 @@ emailWiring = compose "EmailNotificationWiring" $ do
   bind notificationSender emailSender
   bind templateStore      mongoTemplateStore
   bind notificationLog    mongoNotificationLog
+  bind scheduleStore      inMemoryScheduleStore
+  bind preferenceStore    inMemoryPreferenceStore
+  bind deliveryTracker    consoleDeliveryTracker
   entry sendNotification
   entry sendBulk
   entry getHistory
+  entry scheduleNotification
+  entry processPendingSchedules
+  entry cancelSchedule
+  entry getPreferences
+  entry updatePreferences
+  entry getDeliveryReport
 
 smsWiring :: Decl 'Compose
 smsWiring = compose "SmsNotificationWiring" $ do
@@ -177,22 +298,39 @@ architecture = arch "notification-service" $ do
   declare recipient
   declare template
   declare notification
+  declare scheduleStatus
+  declare schedule
+  declare userPreference
+  declare deliveryStatus
+  declare deliveryReport
 
   -- Ports
   declare notificationSender
   declare templateStore
   declare notificationLog
+  declare scheduleStore
+  declare preferenceStore
+  declare deliveryTracker
 
   -- Use cases
   declare sendNotification
   declare sendBulk
   declare getHistory
+  declare scheduleNotification
+  declare processPendingSchedules
+  declare cancelSchedule
+  declare getPreferences
+  declare updatePreferences
+  declare getDeliveryReport
 
   -- Adapters
   declare emailSender
   declare smsSender
   declare mongoTemplateStore
   declare mongoNotificationLog
+  declare inMemoryScheduleStore
+  declare inMemoryPreferenceStore
+  declare consoleDeliveryTracker
 
   -- Wiring
   declare emailWiring
