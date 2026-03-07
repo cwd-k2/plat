@@ -156,11 +156,28 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
     findings
 }
 
-/// Lenient type comparison: strips whitespace and common wrappers.
+/// Lenient type comparison: strips pointer prefix, package qualifier, and slice/array wrappers.
 fn types_match(source: &str, expected: &str) -> bool {
-    let s = source.trim();
-    let e = expected.trim();
+    let s = normalize_type(source);
+    let e = normalize_type(expected);
     s == e
+}
+
+/// Normalize a type string for comparison: strip pointer, package qualifier.
+fn normalize_type(t: &str) -> String {
+    let t = t.trim();
+    // Strip pointer prefix
+    let t = t.trim_start_matches('*');
+    // Strip package qualifier (keep only the type name after last dot)
+    // But preserve slice/map prefixes
+    if let Some(pos) = t.rfind('.') {
+        // Check if this is inside generics or a qualified name
+        let before = &t[..pos];
+        if !before.contains('[') && !before.contains('<') {
+            return t[pos + 1..].to_string();
+        }
+    }
+    t.to_string()
 }
 
 /// Check if a source type string contains a declaration name.

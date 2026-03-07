@@ -90,7 +90,7 @@ fn ts_model_interface() {
     let files = generate(&config(Language::TypeScript), &manifest());
     let order = find_file(&files, "order.ts");
     assert!(order.contains("export interface Order {"));
-    assert!(order.contains("  id: UUID;"));
+    assert!(order.contains("  id: string;"));
     assert!(order.contains("  items: OrderItem[];"));
 }
 

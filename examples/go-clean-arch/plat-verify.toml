@@ -9,6 +9,3 @@ enterprise = "domain"
 interface = "port"
 application = "usecase"
 framework = "adapter"
-
-[types]
-UUID = "string"

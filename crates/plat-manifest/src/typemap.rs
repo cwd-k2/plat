@@ -17,6 +17,8 @@ pub fn defaults(lang: Language) -> HashMap<&'static str, &'static str> {
             m.insert("DateTime", "time.Time");
             m.insert("Any", "interface{}");
             m.insert("Error", "error");
+            m.insert("UUID", "string");
+            m.insert("ID", "string");
         }
         Language::TypeScript => {
             m.insert("String", "string");
@@ -29,6 +31,8 @@ pub fn defaults(lang: Language) -> HashMap<&'static str, &'static str> {
             m.insert("DateTime", "Date");
             m.insert("Any", "any");
             m.insert("Error", "Error");
+            m.insert("UUID", "string");
+            m.insert("ID", "string");
         }
         Language::Rust => {
             m.insert("String", "String");
@@ -41,6 +45,8 @@ pub fn defaults(lang: Language) -> HashMap<&'static str, &'static str> {
             m.insert("DateTime", "DateTime<Utc>");
             m.insert("Any", "Box<dyn Any>");
             m.insert("Error", "String");
+            m.insert("UUID", "String");
+            m.insert("ID", "String");
         }
     }
     m
