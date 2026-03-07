@@ -17,6 +17,7 @@ struct Cli {
 enum DocFormat {
     Markdown,
     Mermaid,
+    Dsm,
 }
 
 fn main() {
@@ -41,6 +42,7 @@ fn main() {
     let output = match cli.format {
         DocFormat::Markdown => plat_doc::render_markdown(&manifest),
         DocFormat::Mermaid => plat_doc::render_mermaid(&manifest),
+        DocFormat::Dsm => plat_doc::render_dsm(&manifest),
     };
 
     print!("{output}");
