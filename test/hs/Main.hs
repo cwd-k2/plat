@@ -31,6 +31,7 @@ main = do
     , section "V009/W003"         testNewRules
     , section "Constraints"       testConstraints
     , section "Relations"         testRelations
+    , section "Meta relations"    testMetaRelations
     , section "Algebra"           testAlgebra
     , section "Manifest"          testManifest
     , section "Evidence"          testEvidence

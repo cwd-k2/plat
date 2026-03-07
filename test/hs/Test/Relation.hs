@@ -1,8 +1,11 @@
 module Test.Relation
   ( testRelations
+  , testMetaRelations
   ) where
 
 import Plat.Core
+import Plat.Ext.Events
+import Plat.Ext.Modules
 import Plat.Verify.Manifest
 
 import qualified Data.Set as Set
@@ -101,4 +104,87 @@ testRelations = do
         fmap (length . mRelations) parsed == Just 2)
     , ("relations in json",
         "\"relations\"" `T.isInfixOf` json)
+    ]
+
+----------------------------------------------------------------------
+-- Meta-derived relations
+----------------------------------------------------------------------
+
+testMetaRelations :: TestResult
+testMetaRelations = do
+  -- Events: emit, on_, apply
+  let orderPlaced = event "OrderPlaced" core $ do
+        field "orderId" uuid
+        field "total" decimal
+
+      placeOrderEvt = operation "PlaceOrderEvt" application $ do
+        input "order" (ref order)
+        output "err" error_
+        needs orderRepo
+        emit orderPlaced
+
+      onOrderPlaced = on_ "HandleOrderPlaced" orderPlaced application $ do
+        output "err" error_
+        needs orderRepo
+
+      orderAgg = model "OrderAggregate" core $ do
+        field "id" uuid
+        apply orderPlaced
+
+  -- Modules: expose, import_
+  let orderDomain = domain "OrderDomain" $ do
+        expose order
+        expose orderRepo
+
+      paymentDomain = domain "PaymentDomain" $ do
+        import_ orderDomain order
+        expose paymentGateway
+
+  let evtArch = arch "meta-rel-test" $ do
+        useLayers [core, application, interface, infra]
+        useTypes  [money]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+        declare paymentGateway
+        declare postgresOrderRepo
+        declare stripePayment
+        declare orderPlaced
+        declare placeOrderEvt
+        declare onOrderPlaced
+        declare orderAgg
+        declare orderDomain
+        declare paymentDomain
+
+      allRels = relations evtArch
+
+  runTests
+    [ ("emits relation from emit",
+        any (\r -> relKind r == "emits" && relSource r == "PlaceOrderEvt"
+                && relTarget r == "OrderPlaced") allRels)
+    , ("subscribes relation from on_",
+        any (\r -> relKind r == "subscribes" && relSource r == "HandleOrderPlaced"
+                && relTarget r == "OrderPlaced") allRels)
+    , ("applies relation from apply",
+        any (\r -> relKind r == "applies" && relSource r == "OrderAggregate"
+                && relTarget r == "OrderPlaced") allRels)
+    , ("exposes relation from expose",
+        any (\r -> relKind r == "exposes" && relSource r == "OrderDomain"
+                && relTarget r == "Order") allRels)
+    , ("exposes OrderRepository",
+        any (\r -> relKind r == "exposes" && relSource r == "OrderDomain"
+                && relTarget r == "OrderRepository") allRels)
+    , ("imports relation from import_",
+        any (\r -> relKind r == "imports" && relSource r == "PaymentDomain"
+                && relTarget r == "Order") allRels)
+    , ("imports has from-module meta",
+        any (\r -> relKind r == "imports" && relSource r == "PaymentDomain"
+                && lookup "from-module" (relMeta r) == Just "OrderDomain") allRels)
+    , ("forwardImpact traces through events",
+        let impact = forwardImpact "OrderPlaced" evtArch
+        in "HandleOrderPlaced" `Set.member` impact
+           || "OrderAggregate" `Set.member` impact)
+    , ("reachable from emitter through event",
+        let reach = reachable "PlaceOrderEvt" evtArch
+        in "OrderPlaced" `Set.member` reach)
     ]

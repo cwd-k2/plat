@@ -90,6 +90,18 @@ merge(empty, A) = Right(A)
 project(P, project(P, A)) = project(P, A)
 ```
 
+### project preserves constraints (vacuous truth)
+```
+archConstraints(project(P, A)) = archConstraints(A)
+
+forall c in archConstraints(A):
+  let A' = project(P, A)
+  in  acCheck(c)(A') evaluates over archDecls(A')
+  -- Constraints using require/forbid/forAll are vacuously true
+  -- for declaration kinds that are projected away, because the
+  -- quantified set becomes empty.
+```
+
 ### project distributes over merge
 ```
 project(P, merge(A, B)) = merge(project(P, A), project(P, B))

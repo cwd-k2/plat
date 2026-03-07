@@ -1,9 +1,12 @@
 mod cache;
 mod check;
 mod config;
+mod contracts;
 mod extract;
+mod init;
 mod lsp;
 mod report;
+mod suggest;
 
 use std::path::PathBuf;
 use std::process;
@@ -37,8 +40,8 @@ impl From<CliLanguage> for Language {
 #[derive(Parser)]
 #[command(name = "plat-verify", version, about = "Architecture conformance verification")]
 struct Cli {
-    /// Manifest JSON file path
-    manifest: PathBuf,
+    /// Manifest JSON file path (not required for --init)
+    manifest: Option<PathBuf>,
 
     /// Config file path
     #[arg(short, long, default_value = "plat-verify.toml")]
@@ -75,6 +78,22 @@ struct Cli {
     /// Run as Language Server Protocol server over stdin/stdout
     #[arg(long)]
     lsp: bool,
+
+    /// Suggest manifest patches from drift findings (T001-T003)
+    #[arg(long)]
+    suggest: bool,
+
+    /// Compare manifests for contract compatibility (provider manifest path)
+    #[arg(long = "contracts", value_name = "PROVIDER_MANIFEST")]
+    contracts: Option<PathBuf>,
+
+    /// Generate initial manifest from source code (reverse engineering)
+    #[arg(long)]
+    init: bool,
+
+    /// Architecture name for --init output
+    #[arg(long, default_value = "my-service")]
+    name: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -104,6 +123,7 @@ struct VerifyParams {
     severity: Severity,
     format: Format,
     quiet: bool,
+    suggest: bool,
 }
 
 /// Run one verification cycle. Returns exit code (0 = ok, 1 = errors found, 2 = fatal).
@@ -147,6 +167,14 @@ fn verify_once(params: &VerifyParams) -> i32 {
     // Report
     let summary = check::Summary::from_findings(&findings, manifest.declarations.len(), convergence);
 
+    // --suggest mode: output manifest patch suggestions
+    if params.suggest {
+        let suggestions = suggest::suggest(&manifest, &facts, &params.config);
+        let output = suggest::render_json(&suggestions);
+        print!("{output}");
+        return 0;
+    }
+
     if !params.quiet {
         let output = report::render(
             &findings,
@@ -177,36 +205,58 @@ fn main() {
 
     let config_dir = cli.config.parent().map(|p| p.to_path_buf());
 
+    // --contracts mode: manifest-to-manifest comparison (no source code)
+    if let Some(ref provider_path) = cli.contracts {
+        let manifest_path = cli.manifest.unwrap_or_else(|| {
+            eprintln!("error: --contracts requires a consumer manifest as positional argument");
+            process::exit(2);
+        });
+        let code = run_contracts(&manifest_path, provider_path, format);
+        process::exit(code);
+    }
+
+    // --init mode: generate manifest from source (no manifest needed)
+    if cli.init {
+        let config = load_config_or_cli(&cli, config_dir.as_deref());
+        let code = run_init(&cli.name, &config);
+        process::exit(code);
+    }
+
+    // All other modes require a manifest
+    let manifest_path = cli.manifest.clone().unwrap_or_else(|| {
+        eprintln!("error: manifest path required (use --init to generate one)");
+        process::exit(2);
+    });
+    let cli_with_manifest = CliWithManifest { cli, manifest_path };
+
     // Try loading config — detect multi-service vs single-service
-    if cli.config.exists() {
-        match ConfigVariant::load(&cli.config) {
+    if cli_with_manifest.cli.config.exists() {
+        match ConfigVariant::load(&cli_with_manifest.cli.config) {
             Ok(ConfigVariant::Multi(multi)) => {
-                // Multi-service mode
                 let code = verify_multi(
-                    &cli.manifest,
+                    &cli_with_manifest.manifest_path,
                     &multi.service,
                     config_dir.as_deref(),
-                    cli.severity,
+                    cli_with_manifest.cli.severity,
                     format,
-                    cli.quiet,
+                    cli_with_manifest.cli.quiet,
                 );
                 process::exit(code);
             }
             Ok(ConfigVariant::Single(config)) => {
-                // Single-service mode — proceed as before
-                let config = apply_cli_overrides(config, &cli, config_dir.as_deref());
-                run_single(cli, config, format);
+                let config = apply_cli_overrides(config, &cli_with_manifest.cli, config_dir.as_deref());
+                run_single(cli_with_manifest, config, format);
             }
             Err(e) => {
-                eprintln!("error: cannot load config {}: {e}", cli.config.display());
+                eprintln!("error: cannot load config {}: {e}", cli_with_manifest.cli.config.display());
                 process::exit(2);
             }
         }
-    } else if cli.language.is_some() {
+    } else if cli_with_manifest.cli.language.is_some() {
         let config = Config {
             source: config::SourceConfig {
-                language: Language::from(cli.language.unwrap()),
-                root: cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
+                language: Language::from(cli_with_manifest.cli.language.unwrap()),
+                root: cli_with_manifest.cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
                 layer_dirs: Default::default(),
                 layer_match: Default::default(),
                 exclude: Default::default(),
@@ -215,10 +265,99 @@ fn main() {
             naming: Default::default(),
             checks: Default::default(),
         };
-        run_single(cli, config, format);
+        run_single(cli_with_manifest, config, format);
     } else {
         eprintln!("error: no config file found and no --language specified");
         process::exit(2);
+    }
+}
+
+/// Helper struct: CLI with resolved manifest path.
+struct CliWithManifest {
+    cli: Cli,
+    manifest_path: PathBuf,
+}
+
+/// Load config from file or construct from CLI flags.
+fn load_config_or_cli(cli: &Cli, config_dir: Option<&std::path::Path>) -> Config {
+    if cli.config.exists() {
+        match ConfigVariant::load(&cli.config) {
+            Ok(ConfigVariant::Single(config)) => {
+                return apply_cli_overrides(config, cli, config_dir);
+            }
+            Ok(ConfigVariant::Multi(multi)) => {
+                if let Some(svc) = multi.service.first() {
+                    let mut config = svc.to_config();
+                    if let Some(dir) = config_dir {
+                        if config.source.root.is_relative() {
+                            config.source.root = dir.join(&config.source.root);
+                        }
+                    }
+                    return config;
+                }
+            }
+            Err(_) => {}
+        }
+    }
+    if let Some(lang) = cli.language {
+        Config {
+            source: config::SourceConfig {
+                language: Language::from(lang),
+                root: cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
+                layer_dirs: Default::default(),
+                layer_match: Default::default(),
+                exclude: Default::default(),
+            },
+            types: Default::default(),
+            naming: Default::default(),
+            checks: Default::default(),
+        }
+    } else {
+        eprintln!("error: no config file found and no --language specified");
+        process::exit(2);
+    }
+}
+
+/// Run --contracts mode.
+fn run_contracts(consumer_path: &PathBuf, provider_path: &PathBuf, format: Format) -> i32 {
+    let load = |path: &PathBuf| -> Result<plat_manifest::Manifest, String> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        serde_json::from_str(&text)
+            .map_err(|e| format!("invalid JSON in {}: {e}", path.display()))
+    };
+
+    let consumer = match load(consumer_path) {
+        Ok(m) => m,
+        Err(e) => { eprintln!("error: {e}"); return 2; }
+    };
+    let provider = match load(provider_path) {
+        Ok(m) => m,
+        Err(e) => { eprintln!("error: {e}"); return 2; }
+    };
+
+    let findings = contracts::check(&consumer, &provider);
+    let output = match format {
+        Format::Json => contracts::render_json(&findings, &consumer.name, &provider.name),
+        _ => contracts::render_text(&findings, &consumer.name, &provider.name),
+    };
+    print!("{output}");
+
+    let errors = findings.iter().filter(|f| f.severity == Severity::Error).count();
+    if errors > 0 { 1 } else { 0 }
+}
+
+/// Run --init mode.
+fn run_init(name: &str, config: &Config) -> i32 {
+    match init::run(name, config) {
+        Ok(json) => {
+            println!("{json}");
+            0
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            2
+        }
     }
 }
 
@@ -245,21 +384,22 @@ fn apply_cli_overrides(mut config: Config, cli: &Cli, config_dir: Option<&std::p
     config
 }
 
-fn run_single(cli: Cli, config: Config, format: Format) {
+fn run_single(cwm: CliWithManifest, config: Config, format: Format) {
     let params = VerifyParams {
-        manifest_path: cli.manifest,
+        manifest_path: cwm.manifest_path,
         config,
-        severity: cli.severity,
+        severity: cwm.cli.severity,
         format,
-        quiet: cli.quiet,
+        quiet: cwm.cli.quiet,
+        suggest: cwm.cli.suggest,
     };
 
-    if cli.lsp {
+    if cwm.cli.lsp {
         if let Err(e) = lsp::run(params.manifest_path, params.config) {
             eprintln!("LSP error: {e}");
             process::exit(2);
         }
-    } else if cli.watch {
+    } else if cwm.cli.watch {
         run_watch(&params);
     } else {
         let code = verify_once(&params);

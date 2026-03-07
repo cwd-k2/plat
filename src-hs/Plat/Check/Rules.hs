@@ -1,4 +1,4 @@
--- | コア検証ルール群 (V001-V009, W001-W003)。
+-- | コア検証ルール群 (V001-V010, W001-W003)。
 --
 -- 'coreRules' が全ルールを含む標準セット。
 -- 個別ルールを選択的に組み合わせることも可能。
@@ -17,6 +17,7 @@ module Plat.Check.Rules
   , UndefinedTypeRule (..)
   , UniqueNameRule (..)
   , MultipleImplementsRule (..)
+  , RelationRefRule (..)
   ) where
 
 import Data.Text (Text)
@@ -49,6 +50,7 @@ coreRules =
   , SomeRule UndefinedTypeRule
   , SomeRule UniqueNameRule
   , SomeRule MultipleImplementsRule
+  , SomeRule RelationRefRule
   ]
 
 ----------------------------------------------------------------------
@@ -354,5 +356,30 @@ instance PlatRule MultipleImplementsRule where
           (declName d) Nothing
       ]
     | otherwise = []
+
+----------------------------------------------------------------------
+-- V010: 明示的関係の参照先検証
+----------------------------------------------------------------------
+
+-- | V010: @relate@ で宣言された明示的関係の source/target が
+-- Architecture 内に存在することを検証する。
+data RelationRefRule = RelationRefRule
+instance PlatRule RelationRefRule where
+  ruleCode _ = "V010"
+  checkArch _ arch =
+    [ Diagnostic Warning "V010"
+        ("relation " <> relKind r <> ": source " <> relSource r <> " not found")
+        (relSource r) Nothing
+    | r <- archRelations arch
+    , relSource r `Set.notMember` declNames
+    ]
+    ++
+    [ Diagnostic Warning "V010"
+        ("relation " <> relKind r <> ": target " <> relTarget r <> " not found")
+        (relTarget r) Nothing
+    | r <- archRelations arch
+    , relTarget r `Set.notMember` declNames
+    ]
+    where declNames = Set.fromList [declName d | d <- archDecls arch]
 
 -- W004 はファイル不在チェック。Plat.Check.checkPaths で直接生成される（IO が必要なため）

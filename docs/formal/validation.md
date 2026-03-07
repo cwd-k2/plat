@@ -82,6 +82,14 @@ V009(A) = forall c in archConstraints(A):
 ```
 **Severity**: Error
 
+### V010: Relation reference validity
+```
+V010(A) = forall r in archRelations(A):
+  relSource(r) in declNames(A)
+  /\ relTarget(r) in declNames(A)
+```
+**Severity**: Warning
+
 ## Warning Rules
 
 ### W001: Unused Boundary (no adapter implements it)

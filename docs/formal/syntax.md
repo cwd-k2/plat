@@ -117,3 +117,10 @@ forall Bind(bnd, adp) in declBody(d) where declKind(d) = Compose:
   /\ exists a in archDecls: declName(a) = adp /\ declKind(a) = Adapter
   /\ Implements(bnd) in declBody(a)
 ```
+
+### WF-Rel: Relation reference validity
+```
+forall r in archRelations:
+  exists d in archDecls: declName(d) = relSource(r)
+  /\ exists d' in archDecls: declName(d') = relTarget(r)
+```

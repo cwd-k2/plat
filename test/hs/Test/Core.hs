@@ -132,6 +132,22 @@ testNewRules = do
                                      && "PaymentGateway" `T.isInfixOf` dMessage d) (warnings r2))
     , ("multi-implements last wins",
         findImplements (declBody (decl multiImplAdapter)) == Just "PaymentGateway")
+    , ("V010: dangling relation target",
+        let danglingArch = arch "dangling-rel" $ do
+              useLayers [core]
+              declare order
+              relate "depends-on" order (model "Ghost" core $ field "x" int)
+            r3 = check danglingArch
+        in any (\d -> dCode d == "V010") (warnings r3))
+    , ("V010: valid relation no warning",
+        let validArch = arch "valid-rel" $ do
+              useLayers [core]
+              registerType "UUID"
+              declare order
+              declare orderStatus
+              relate "uses" order orderStatus
+            r4 = check validArch
+        in not (any (\d -> dCode d == "V010") (warnings r4)))
     ]
 
 testCustomRuleApi :: TestResult

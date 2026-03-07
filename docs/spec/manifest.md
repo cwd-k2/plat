@@ -78,6 +78,7 @@ verify  skeleton  contract  deprules
 | `implements` | string? | no | Implemented boundary name |
 | `injects` | Field[] | no (default: []) | Adapter injected dependencies |
 | `entries` | string[] | no (default: []) | Compose entry point names |
+| `service` | string? | no | Service name (multi-service manifest) |
 | `meta` | object | no (default: {}) | Declaration-level metadata |
 
 ### kind ごとの使用フィールド

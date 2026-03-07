@@ -27,6 +27,7 @@ module Plat.Core.Relation
   ) where
 
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Graph (stronglyConnComp, SCC(..))
@@ -35,23 +36,38 @@ import Plat.Core.Types
 
 -- | アーキテクチャ内の全関係を抽出する。
 --
--- DeclItem 由来の暗黙的関係:
+-- 三つのソースを統合する:
 --
--- * @"needs"@ — Operation が Boundary に依存
--- * @"implements"@ — Adapter が Boundary を実装
--- * @"bind"@ — Compose が Boundary と Adapter を結合
--- * @"entry"@ — Compose のエントリポイント
--- * @"references"@ — フィールド型が他の宣言を参照
+-- 1. DeclItem 由来の暗黙的関係:
+--    * @"needs"@ — Operation が Boundary に依存
+--    * @"implements"@ — Adapter が Boundary を実装
+--    * @"bind"@ — Compose が Boundary と Adapter を結合
+--    * @"entry"@ — Compose のエントリポイント
+--    * @"references"@ — フィールド型が他の宣言を参照
 --
--- 加えて 'Plat.Core.Builder.relate' で登録された明示的関係。
+-- 2. Meta 由来の拡張関係:
+--    * @"emits"@ — Operation がイベントを発行 (Events: emit)
+--    * @"subscribes"@ — Operation がイベントを購読 (Events: on_)
+--    * @"applies"@ — Model がイベントを適用 (Events: apply)
+--    * @"exposes"@ — Module が宣言を公開 (Modules: expose)
+--    * @"imports"@ — Module が他モジュールから宣言を取り込む (Modules: import_)
+--
+-- 3. 'Plat.Core.Builder.relate' で登録された明示的関係。
 relations :: Architecture -> [Relation]
 relations a = implicit ++ archRelations a
   where
     implicit = concatMap declRelations (archDecls a)
 
 -- | 単一宣言から暗黙的関係を抽出する。
+--
+-- DeclItem 由来の構造的関係に加え、declMeta に格納された
+-- 拡張由来の関係も統合して抽出する。
 declRelations :: Declaration -> [Relation]
-declRelations d = concatMap (itemRelation (declName d)) (declBody d)
+declRelations d = itemRels ++ metaRels
+  where
+    src = declName d
+    itemRels = concatMap (itemRelation src) (declBody d)
+    metaRels = concatMap (metaRelation src) (declMeta d)
 
 itemRelation :: Text -> DeclItem -> [Relation]
 itemRelation src (Needs tgt)        = [Relation "needs" src tgt []]
@@ -63,6 +79,30 @@ itemRelation src (Input _ ty)       = [Relation "references" src t [] | t <- typ
 itemRelation src (Output _ ty)      = [Relation "references" src t [] | t <- typeRefs ty]
 itemRelation src (Inject _ ty)      = [Relation "references" src t [] | t <- typeRefs ty]
 itemRelation _   (Op _ _ _)         = []  -- Op の中の Param は Boundary の内部構造
+
+-- | Meta キーから拡張由来の関係を抽出する。
+--
+-- 対応するパターン:
+--
+-- * @plat-events:emit:{name}@  → @"emits"@
+-- * @plat-events:on@           → @"subscribes"@
+-- * @plat-events:apply:{name}@ → @"applies"@
+-- * @plat-modules:expose:{name}@ → @"exposes"@
+-- * @plat-modules:import:{name}@ → @"imports"@ (value = source module)
+metaRelation :: Text -> (Text, Text) -> [Relation]
+metaRelation src (key, val)
+  | "plat-events:emit:" `T.isPrefixOf` key
+  = [Relation "emits" src val []]
+  | key == "plat-events:on"
+  = [Relation "subscribes" src val []]
+  | "plat-events:apply:" `T.isPrefixOf` key
+  = [Relation "applies" src val []]
+  | "plat-modules:expose:" `T.isPrefixOf` key
+  = [Relation "exposes" src val []]
+  | "plat-modules:import:" `T.isPrefixOf` key
+  , let target = T.drop (T.length "plat-modules:import:") key
+  = [Relation "imports" src target [("from-module", val)]]
+  | otherwise = []
 
 -- | 指定宣言を起点とする全関係。
 relationsOf :: Text -> Architecture -> [Relation]

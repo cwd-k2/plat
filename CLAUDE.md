@@ -83,6 +83,9 @@ Meta DSL の4パターン:
 | ツール | 用途 | 入力 |
 |--------|------|------|
 | `plat-verify` | 構造適合性検証 | manifest + ソースコード |
+| `plat-verify --suggest` | manifest パッチ提案 | manifest + ソースコード |
+| `plat-verify --contracts` | manifest 間互換性検証 | manifest × 2 |
+| `plat-verify --init` | ソースから manifest 逆生成 | ソースコードのみ |
 | `plat-doc` | ドキュメント生成 (Markdown/Mermaid/DSM) | manifest |
 | `plat-skeleton` | コードスカフォールド生成 | manifest |
 | `plat-contract` | テストスケルトン生成 | manifest |
@@ -117,7 +120,7 @@ cargo test -p plat-verify      # verify テスト
 
 - [docs/spec/](docs/spec/) — 正式仕様 (体系的に分割)
 - [docs/architecture.md](docs/architecture.md) — モジュール構成、AST 設計、モナド設計の詳細
-- [docs/validation-rules.md](docs/validation-rules.md) — V001-V009, W001-W004 の詳細仕様
+- [docs/validation-rules.md](docs/validation-rules.md) — V001-V010, W001-W004 の詳細仕様
 - [docs/extensions.md](docs/extensions.md) — 拡張の設計パターンと全拡張の meta タグ一覧
 - [docs/plat-verify-spec.md](docs/plat-verify-spec.md) — plat-verify 仕様
 - [docs/tooling-direction.md](docs/tooling-direction.md) — Haskell/Rust 責務分離の方針
