@@ -189,12 +189,16 @@ mapM_ (\(fp, content) -> out ("dist/skeleton/" <> fp) content)
 
 ### Step 4: plat-verify で実装を検証
 
-plat-verify をビルド:
+plat-verify をインストール:
 
 ```bash
-cd path/to/plat/verify
-cargo build --release
-# バイナリ: target/release/plat-verify
+cargo install --git <plat-repo-url> plat-verify
+```
+
+ローカルからビルドする場合:
+
+```bash
+cargo install --path path/to/plat/verify
 ```
 
 プロジェクトルートに設定ファイルを作成:
