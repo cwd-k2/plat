@@ -84,6 +84,19 @@ module Plat.Core
   , forAll
   , holds
 
+    -- * Relations
+  , Relation (..)
+  , relate
+  , relations
+  , relationsOf
+  , dependsOn
+  , implementedBy
+  , boundTo
+  , transitive
+  , reachable
+  , isAcyclic
+  , typeRefs
+
     -- * Meta DSL
   , ExtId
   , MetaTag
@@ -129,5 +142,6 @@ module Plat.Core
 import Plat.Core.Types
 import Plat.Core.Builder
 import Plat.Core.Constraint
+import Plat.Core.Relation
 import Plat.Core.TypeExpr
 import Plat.Core.Meta

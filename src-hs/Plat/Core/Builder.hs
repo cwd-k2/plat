@@ -64,6 +64,7 @@ module Plat.Core.Builder
   , declare
   , declares
   , constrain
+  , relate
   ) where
 
 import Data.Text (Text)
@@ -304,11 +305,12 @@ data ArchBuild = ArchBuild
   , abCustomTypes :: [Text]
   , abDecls       :: [Declaration]
   , abConstraints :: [ArchConstraint]
+  , abRelations   :: [Relation]
   , abMeta        :: [(Text, Text)]
   }
 
 emptyArchBuild :: ArchBuild
-emptyArchBuild = ArchBuild [] [] [] [] [] []
+emptyArchBuild = ArchBuild [] [] [] [] [] [] []
 
 -- | アーキテクチャビルダーモナド。レイヤー・型エイリアス・宣言を束ねて 'Architecture' を構築する。
 newtype ArchBuilder a = ArchBuilder (ArchBuild -> (a, ArchBuild))
@@ -340,6 +342,7 @@ arch name (ArchBuilder f) =
     , archCustomTypes = reverse (abCustomTypes ab)
     , archDecls       = reverse (abDecls ab)
     , archConstraints = reverse (abConstraints ab)
+    , archRelations   = reverse (abRelations ab)
     , archMeta        = reverse (abMeta ab)
     }
 
@@ -374,3 +377,16 @@ declares ds = ArchBuilder $ \s -> ((), s { abDecls = reverse ds ++ abDecls s })
 constrain :: Text -> Text -> (Architecture -> [Text]) -> ArchBuilder ()
 constrain name desc chk = ArchBuilder $ \s ->
   ((), s { abConstraints = ArchConstraint name desc chk : abConstraints s })
+
+-- | 宣言間の明示的な関係を登録する。
+--
+-- DeclItem に含まれない関係（uses, publishes, subscribes 等）を表現する。
+-- 'Plat.Core.Relation.relations' で暗黙的関係と統合してクエリできる。
+--
+-- @
+-- relate "uses" getOrder placeOrder
+-- relate "publishes" placeOrder orderPlacedEvent
+-- @
+relate :: Text -> Decl a -> Decl b -> ArchBuilder ()
+relate kind (Decl src) (Decl tgt) = ArchBuilder $ \s ->
+  ((), s { abRelations = Relation kind (declName src) (declName tgt) [] : abRelations s })

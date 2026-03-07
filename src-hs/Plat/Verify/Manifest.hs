@@ -15,6 +15,7 @@ module Plat.Verify.Manifest
   , ManifestLayer (..)
   , ManifestTypeAlias (..)
   , ManifestConstraint (..)
+  , ManifestRelation (..)
   , manifest
   , renderManifest
   , parseManifest
@@ -43,6 +44,7 @@ data Manifest = Manifest
   , mDecls       :: [ManifestDecl]
   , mBindings    :: [ManifestBinding]
   , mConstraints :: [ManifestConstraint]
+  , mRelations   :: [ManifestRelation]
   , mMeta        :: [(Text, Text)]
   } deriving stock (Show, Eq)
 
@@ -93,6 +95,13 @@ data ManifestConstraint = ManifestConstraint
   , mcDesc :: Text
   } deriving stock (Show, Eq)
 
+data ManifestRelation = ManifestRelation
+  { mrKind   :: Text
+  , mrSource :: Text
+  , mrTarget :: Text
+  , mrMeta   :: [(Text, Text)]
+  } deriving stock (Show, Eq)
+
 ----------------------------------------------------------------------
 -- ToJSON
 ----------------------------------------------------------------------
@@ -106,6 +115,7 @@ instance ToJSON Manifest where
     , "declarations"   .= mDecls m
     , "bindings"       .= mBindings m
     , "constraints"    .= mConstraints m
+    , "relations"      .= mRelations m
     , "meta"           .= metaObject (mMeta m)
     ]
 
@@ -163,6 +173,14 @@ instance ToJSON ManifestConstraint where
     , "description" .= mcDesc c
     ]
 
+instance ToJSON ManifestRelation where
+  toJSON r = object
+    [ "kind"   .= mrKind r
+    , "source" .= mrSource r
+    , "target" .= mrTarget r
+    , "meta"   .= metaObject (mrMeta r)
+    ]
+
 metaObject :: [(Text, Text)] -> Aeson.Value
 metaObject = toJSON . Map.fromList
 
@@ -179,6 +197,7 @@ instance FromJSON Manifest where
     <*> o .:  "declarations"
     <*> o .:? "bindings" .!= []
     <*> o .:? "constraints" .!= []
+    <*> o .:? "relations" .!= []
     <*> (Map.toList <$> o .:? "meta" .!= Map.empty)
 
 instance FromJSON ManifestLayer where
@@ -228,6 +247,13 @@ instance FromJSON ManifestConstraint where
     <$> o .: "name"
     <*> o .: "description"
 
+instance FromJSON ManifestRelation where
+  parseJSON = withObject "ManifestRelation" $ \o -> ManifestRelation
+    <$> o .: "kind"
+    <*> o .: "source"
+    <*> o .: "target"
+    <*> (Map.toList <$> o .:? "meta" .!= Map.empty)
+
 ----------------------------------------------------------------------
 -- Build manifest
 ----------------------------------------------------------------------
@@ -241,11 +267,15 @@ manifest a = Manifest
   , mDecls       = map toManifestDecl (archDecls a)
   , mBindings    = concatMap extractBindings (archDecls a)
   , mConstraints = map toManifestConstraint (archConstraints a)
+  , mRelations   = map toManifestRelation (archRelations a)
   , mMeta        = archMeta a
   }
 
 toManifestConstraint :: ArchConstraint -> ManifestConstraint
 toManifestConstraint c = ManifestConstraint (acName c) (acDesc c)
+
+toManifestRelation :: Relation -> ManifestRelation
+toManifestRelation r = ManifestRelation (relKind r) (relSource r) (relTarget r) (relMeta r)
 
 toManifestLayer :: LayerDef -> ManifestLayer
 toManifestLayer ly = ManifestLayer (layerName ly) (layerDeps ly)

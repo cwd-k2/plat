@@ -17,6 +17,9 @@ module Plat.Core.Types
     -- * Constraints
   , ArchConstraint (..)
 
+    -- * Relations
+  , Relation (..)
+
     -- * Declaration (AST node, untagged)
   , Declaration (..)
 
@@ -67,6 +70,17 @@ instance Show ArchConstraint where
 instance Eq ArchConstraint where
   a == b = acName a == acName b
 
+-- | 宣言間の関係。DeclItem の暗黙的関係を補完する明示的な関係。
+--
+-- 'Plat.Core.Builder.relate' で宣言する。'Plat.Core.Relation.relations' で
+-- DeclItem 由来の暗黙的関係と統合してクエリできる。
+data Relation = Relation
+  { relKind   :: Text            -- ^ 関係の種類（例: @"uses"@, @"publishes"@）
+  , relSource :: Text            -- ^ 関係元の宣言名
+  , relTarget :: Text            -- ^ 関係先の宣言名
+  , relMeta   :: [(Text, Text)]  -- ^ 関係メタデータ
+  } deriving stock (Show, Eq)
+
 -- | アーキテクチャ全体。'Plat.Core.Builder.arch' で構築される。
 data Architecture = Architecture
   { archName        :: Text              -- ^ アーキテクチャ名（例: @"order-service"@）
@@ -75,6 +89,7 @@ data Architecture = Architecture
   , archCustomTypes :: [Text]            -- ^ 'registerType' で登録されたカスタム型名
   , archDecls       :: [Declaration]     -- ^ 全宣言
   , archConstraints :: [ArchConstraint]  -- ^ アーキテクチャ制約
+  , archRelations   :: [Relation]        -- ^ 明示的な宣言間関係
   , archMeta        :: [(Text, Text)]    -- ^ アーキテクチャレベルのメタデータ
   } deriving stock (Show, Eq)
 
