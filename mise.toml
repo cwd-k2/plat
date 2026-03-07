@@ -34,7 +34,7 @@ echo '--- Rust CQRS + Event Sourcing ---' && cabal run example-rust-cqrs-es 2>/d
 
 [tasks.watch]
 description = "Rebuild on file changes"
-run = "find src-hs test-hs -name '*.hs' | entr -c cabal test"
+run = "find src-hs test/hs -name '*.hs' | entr -c cabal test"
 
 [tasks."verify:build"]
 description = "Build plat-verify (Rust)"

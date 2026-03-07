@@ -11,7 +11,7 @@ fn plat_verify_bin() -> PathBuf {
 
 fn fixture_dir() -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("tests");
+    path.push("test");
     path.push("fixtures");
     path.push("rust-clean-arch");
     path

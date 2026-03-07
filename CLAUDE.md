@@ -41,7 +41,7 @@ mise タスクも利用可能 (`mise run build`, `mise run test` 等)。
 1. `src-hs/Plat/Check/Rules.hs` に data 型を定義
 2. `PlatRule` instance を実装 (`ruleCode`, `checkDecl` or `checkArch`)
 3. `coreRules` リストに `SomeRule NewRule` を追加
-4. `test-hs/Main.hs` にテスト追加
+4. `test/hs/Main.hs` にテスト追加
 
 拡張固有ルールは各 `Ext/*.hs` で定義し、`{ext}Rules :: [SomeRule]` としてエクスポート。
 
@@ -93,7 +93,7 @@ Meta DSL の4パターン:
 
 ## Testing
 
-`test-hs/Main.hs` に全テストがフラットに配置されている。
+`test/hs/Main.hs` に全テストがフラットに配置されている。
 テストフレームワークは未使用 (base のみ)。`assertEqual` / `assertBool` は自前実装。
 
 ## Reference

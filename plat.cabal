@@ -126,7 +126,7 @@ executable example-go-feature-sliced
 test-suite plat-test
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
-  hs-source-dirs:   test-hs
+  hs-source-dirs:   test/hs
   build-depends:
     , base       >= 4.18 && < 5
     , plat

@@ -8,6 +8,18 @@ description = "Architecture conformance verification via tree-sitter"
 name = "plat-verify"
 path = "src-rs/main.rs"
 
+[[test]]
+name = "integration_go"
+path = "test/rs/integration_go.rs"
+
+[[test]]
+name = "integration_rust"
+path = "test/rs/integration_rust.rs"
+
+[[test]]
+name = "integration_typescript"
+path = "test/rs/integration_typescript.rs"
+
 [dependencies]
 tree-sitter = "0.24"
 tree-sitter-go = "0.23"
