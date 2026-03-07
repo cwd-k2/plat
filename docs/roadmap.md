@@ -79,14 +79,28 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 
 - **VS Code extension** (`editors/vscode`): plat-verify LSP client, 自動 manifest 検出, ステータスバー表示
 
-## Future Directions
+### Advanced Verification Modes
 
-方針の詳細は [docs/tooling-direction.md](tooling-direction.md) を参照。
+- **`--suggest`**: drift findings (T001-T003) から manifest パッチ JSON を生成
+- **`--contracts`**: 2 manifest 間の契約互換性検証 (CT001-CT003)
+- **`--init`**: tree-sitter facts → 初期 manifest JSON 逆生成 (Reflexion Model bootstrapping)
+  - Kind inference: boundary (interface/trait), adapter (implements), operation (boundary-typed fields), model (default)
+  - Go structural typing: method-set superset による暗黙的 implements 検出
+  - Layer dependency inference: cross-layer 参照からの自動推論
+- **Convergence / Health Score**: types, fields, methods の確認率を weighted score で表示
 
-### Architecture as Code の進化
+### Infrastructure
 
 - ~~plat-doc~~ ✓ manifest → Markdown/Mermaid/DSM 生成 (Rust ツール化完了)
 - ~~Drift 詳細化~~ ✓ T003 (余剰メソッド), T004 (未宣言 implements)
 - ~~キャッシュバージョニング~~ ✓ パーサー変更時の stale cache 防止
 - ~~Multi-service manifest~~ ✓ Haskell service フィールド出力 + Rust split_by_service
+- ~~Import graph analysis~~ ✓ I001 (レイヤー越えインポート), I002 (サイクル)
+- ~~Naming convention checks~~ ✓ N001-N003
+- ~~find_type_by_name 統一~~ ✓ 全チェッカーで共通の型検索関数 (Go suffix match, original name fallback)
+
+## Future Directions
+
+方針の詳細は [docs/tooling-direction.md](tooling-direction.md) を参照。
+
 - VS Code extension の publish (VSIX パッケージ化)

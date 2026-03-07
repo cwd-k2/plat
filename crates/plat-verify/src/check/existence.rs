@@ -17,7 +17,7 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
         };
 
         let expected_name = config.convert_type_name(&decl.name);
-        let found = find_type_by_name(facts, &expected_name, config);
+        let found = find_type_by_name(facts, &expected_name, Some(&decl.name), config);
 
         if found.is_none() {
             let layer_hint = decl

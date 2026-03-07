@@ -1,200 +1,101 @@
 # plat
 
-Architecture as Code — eDSL, generation, verification.
+Architecture as Code — define, verify, generate.
 
-ソフトウェアアーキテクチャを Haskell の値として記述し、コンパイル時の参照安全性・実行時バリデーション・複数フォーマットへの出力を得る。実装との構造的適合を tree-sitter ベースのツール (plat-verify, Rust) で検証する。
-
-## Idea
-
-アーキテクチャ記述言語には2つの矛盾する要求がある:
-
-1. **構造的制約** — model に `needs` を書けてはならない、adapter に `field` があってはならない
-2. **均質なデータ操作** — すべての宣言をリストで走査し、検証や生成に渡したい
-
-plat はこれを **phantom-tagged newtype** (`Decl k`) と **消去関数** (`decl`) の2層で解決する。構築時は型レベルの制約が効き、操作時は均質な `Declaration` として扱える。
-
-## Mental Model
-
-アーキテクチャは5種類の宣言 (`DeclKind`) から成る:
+manifest.json を軸に、アーキテクチャの定義・実装の検証・コード生成を行うツールチェーン。
 
 ```
-Model       — データ構造の定義（field）
-Boundary    — ポート/インタフェース（op）
-Operation   — ユースケース（input, output, needs）
-Adapter     — 実装（implements, inject）
-Compose     — 配線（bind, entry）
+                      ┌─────────────────────────────────────────────────────┐
+                      │                  manifest.json                      │
+                      └────────┬────────┬────────┬────────┬────────┬───────┘
+                               │        │        │        │        │
+  Haskell eDSL ───generate───▶ │        │        │        │        │
+  Source code ────--init─────▶ │        │        │        │        │
+  Hand-written ──────────────▶ │        │        │        │        │
+                               ▼        ▼        ▼        ▼        ▼
+                            verify   skeleton contract  deprules   doc
 ```
 
-これらはレイヤーに配置され、レイヤー間の依存関係が `check` で検証される。
+## Quick Start
 
-```
-Layer A ──depends──> Layer B
+### A. 既存コードベースから始める（推奨）
 
-Operation(A) ──needs──> Boundary(B)    <- A が B に依存を許可していれば OK
-Adapter(A) ──implements──> Boundary(B) <- 同上
-```
+ソースコードを解析して manifest を自動生成し、すぐに検証を開始できる。
 
-## Getting Started
+```bash
+# 1. ビルド
+cargo build --release
 
-### 前提条件
+# 2. ソースから manifest を逆生成
+plat-verify --init --name my-service --root ./src --language go > manifest.json
 
-- **GHC >= 9.10** + **cabal >= 3.0** — [ghcup](https://www.haskell.org/ghcup/) でインストール
-- **Rust stable** — [rustup](https://rustup.rs/) (plat-verify を使う場合)
+# 3. 設定ファイルを作成
+cat > plat-verify.toml << 'EOF'
+[source]
+language = "go"
+root = "./src"
 
-### ワークフロー
+[source.layer_dirs]
+domain    = "domain"
+interface = "port"
+application = "usecase"
+infra     = "infra"
+EOF
 
-```
-1. アーキテクチャを Haskell で記述
-2. cabal run で成果物を生成
-3. plat-verify で実装コードとの適合性を検証
-```
+# 4. 検証
+plat-verify manifest.json
 
-### Step 1: プロジェクトセットアップ
-
-plat を cabal の依存に追加する:
-
-```cabal
--- my-service-arch.cabal
-cabal-version: 3.0
-name:    my-service-arch
-version: 0.1.0
-
-executable my-service-arch
-  main-is: Main.hs
-  hs-source-dirs: arch
-  build-depends:
-    , base       >= 4.20 && < 5
-    , plat
-    , text       >= 2.0
-    , directory  >= 1.3
-    , filepath   >= 1.4
-  default-language: GHC2024
-  default-extensions: OverloadedStrings
+# 5. manifest を手で洗練し、再検証を繰り返す
 ```
 
-### Step 2: アーキテクチャを記述
+`--init` はソースから boundary / adapter / operation / model を推論する。生成された manifest を出発点として手動で洗練していく（Reflexion Model）。
+
+### B. Haskell eDSL でゼロから定義する
+
+型安全な eDSL でアーキテクチャを記述し、manifest を生成する。
+
+```bash
+# 前提: GHC >= 9.10, cabal >= 3.0
+cabal build
+cabal run my-service-arch
+# → dist/manifest.json が生成される
+```
 
 ```haskell
--- arch/Main.hs
 module Main where
 
 import Plat.Core
 import Plat.Check
-import Plat.Generate.Mermaid   (renderMermaid)
-import Plat.Generate.Markdown  (renderMarkdown)
-import Plat.Verify.Manifest    (manifest, renderManifest)
-
-import Data.Text (Text)
+import Plat.Verify.Manifest (manifest, renderManifest)
 import qualified Data.Text.IO as TIO
-import System.Directory (createDirectoryIfMissing)
 
--- Layers
+-- レイヤー定義
 dom   = layer "domain"
-port_ = layer "port"           `depends` [dom]
-app   = layer "application"    `depends` [dom, port_]
-infra = layer "infrastructure" `depends` [dom, port_, app]
+port_ = layer "port"        `depends` [dom]
+app   = layer "application" `depends` [dom, port_]
+infra = layer "infra"       `depends` [dom, port_, app]
 
--- Model
+-- Model: データ構造
 order :: Decl 'Model
 order = model "Order" dom $ do
   field "id"     (customType "UUID")
   field "total"  decimal
   field "status" string
 
--- Boundary (port)
+-- Boundary: ポート（インターフェース）
 orderRepo :: Decl 'Boundary
 orderRepo = boundary "OrderRepository" port_ $ do
   op "save"     ["order" .: ref order] ["err" .: error_]
   op "findById" ["id" .: customType "UUID"] ["order" .: ref order, "err" .: error_]
 
--- Operation (use case)
+-- Operation: ユースケース
 placeOrder :: Decl 'Operation
 placeOrder = operation "PlaceOrder" app $ do
   input  "order" (ref order)
   output "err"   error_
   needs orderRepo
 
--- Adapter
-pgRepo :: Decl 'Adapter
-pgRepo = adapter "PostgresOrderRepo" infra $ do
-  implements orderRepo
-  inject "db" (ext "*sql.DB")
-
--- Wiring
-wiring :: Decl 'Compose
-wiring = compose "ServiceWiring" $ do
-  bind orderRepo pgRepo
-  entry placeOrder
-
--- Architecture
-architecture :: Architecture
-architecture = arch "my-service" $ do
-  useLayers [dom, port_, app, infra]
-  registerType "UUID"
-  declare order
-  declare orderRepo
-  declare placeOrder
-  declare pgRepo
-  declare wiring
-
-out :: FilePath -> Text -> IO ()
-out fp content = createDirectoryIfMissing True "dist" >> TIO.writeFile fp content
-
-main :: IO ()
-main = do
-  out "dist/check.txt"         (prettyCheck (check architecture))
-  out "dist/manifest.json"     (renderManifest (manifest architecture))
-  out "dist/architecture.md"   (renderMarkdown architecture)
-  out "dist/architecture.mmd"  (renderMermaid architecture)
-  putStrLn "Generated: dist/{check.txt, manifest.json, architecture.md, architecture.mmd}"
-```
-
-### Step 3: 生成
-
-```bash
-cabal run my-service-arch
-```
-
-### Step 4: plat-verify で実装を検証
-
-```bash
-plat-verify dist/manifest.json --language go --root ./src
-```
-
-詳細: [docs/plat-verify-spec.md](docs/plat-verify-spec.md)
-
-## API Overview
-
-```haskell
-import Plat.Core
-import Plat.Check
-
--- Layers: 依存グラフを定義
-core        = layer "core"
-interface   = layer "interface"   `depends` [core]
-application = layer "application" `depends` [core, interface]
-infra       = layer "infra"       `depends` [core, application, interface]
-
--- Model: データ構造
-order :: Decl 'Model
-order = model "Order" core $ do
-  field "id"     (customType "UUID")
-  field "total"  decimal
-
--- Boundary: ポート
-orderRepo :: Decl 'Boundary
-orderRepo = boundary "OrderRepository" interface $ do
-  op "save"     ["order" .: ref order] ["err" .: error_]
-  op "findById" ["id" .: customType "UUID"] ["order" .: ref order, "err" .: error_]
-
--- Operation: ユースケース
-placeOrder :: Decl 'Operation
-placeOrder = operation "PlaceOrder" application $ do
-  input  "order" (ref order)
-  output "err"   error_
-  needs orderRepo    -- compile-time: Decl 'Boundary のみ受理
-
--- Adapter: 外部実装
+-- Adapter: 実装
 pgRepo :: Decl 'Adapter
 pgRepo = adapter "PostgresOrderRepo" infra $ do
   implements orderRepo
@@ -203,72 +104,340 @@ pgRepo = adapter "PostgresOrderRepo" infra $ do
 -- Architecture: 全体を組み立て
 architecture :: Architecture
 architecture = arch "my-service" $ do
-  useLayers [core, application, interface, infra]
+  useLayers [dom, port_, app, infra]
   registerType "UUID"
   declare order
   declare orderRepo
   declare placeOrder
   declare pgRepo
+
+main :: IO ()
+main = TIO.writeFile "dist/manifest.json" (renderManifest (manifest architecture))
 ```
 
-## Two-Layer Type Design
-
-### Construction: `Decl k`
-
-phantom 型パラメータ `k :: DeclKind` がコンビネータを制約する:
+eDSL は phantom type (`Decl k`) でコンパイル時に不正な組み合わせを検出する:
 
 ```haskell
-needs :: Decl 'Boundary -> DeclWriter 'Operation ()
--- needs order       -> compile error (Model /= Boundary)
-
-field :: Text -> TypeExpr -> DeclWriter 'Model ()
--- field inside boundary -> compile error
-
-bind :: Decl 'Boundary -> Decl 'Adapter -> DeclWriter 'Compose ()
--- bind pgRepo orderRepo -> compile error (引数の型が逆)
+needs orderRepo     -- OK: Decl 'Boundary
+needs order         -- compile error: Model /= Boundary
+field "x" int       -- OK in Model
+field "x" int       -- compile error in Boundary
 ```
 
-### Manipulation: `Declaration`
+---
 
-`decl :: Decl k -> Declaration` で phantom tag を消去すると、均質なリストとして扱える:
+## ツール一覧
 
-```haskell
-declares :: [Declaration] -> ArchBuilder ()
-declares [decl order, decl orderRepo, decl placeOrder]
+manifest.json を入力として動作する Rust 製のスタンドアロンツール群。
+
+### plat-verify — 構造適合性検証
+
+manifest とソースコードを照合し、アーキテクチャの実装適合性を検証する。
+
+```bash
+# 基本
+plat-verify manifest.json --language go --root ./src
+
+# 設定ファイル使用
+plat-verify manifest.json -c plat-verify.toml
+
+# CI 向け: JSON 出力 + error のみ
+plat-verify manifest.json --format json --severity error
+
+# 特定のチェックカテゴリのみ
+plat-verify manifest.json --check existence --check structure
+
+# ファイル監視モード
+plat-verify manifest.json --watch
+
+# LSP サーバーモード
+plat-verify manifest.json --lsp
 ```
 
-## Validation
+**チェックカテゴリ:**
 
-`check :: Architecture -> CheckResult` はレイヤー依存・型整合性・構造制約を検証する。
+| Category | Codes | 内容 | Default |
+|----------|-------|------|---------|
+| existence | E001-E004 | 宣言に対応する型がソースに存在するか | on |
+| structure | S001-S006 | フィールド・メソッドの構造が一致するか | on |
+| relation | R001-R004 | implements/needs/bindings が実装されているか | on |
+| drift | T001-T004 | manifest にない型・フィールド・メソッドの検出 | off |
+| layer-deps | L001 | レイヤー依存方向の違反検出 | off |
+| imports | I001-I002 | import/use 文のレイヤー越え・循環検出 | off |
+| naming | N001-N003 | 命名規約違反の検出 | off |
 
-| Code | What it catches |
-|------|-----------------|
-| V001 | レイヤー依存違反 |
-| V002 | レイヤー循環依存 |
-| V003 | `needs` の対象が boundary でない |
-| V004 | boundary に adapter 固有の要素 |
-| V005 | compose 外での `bind` |
-| V006 | 予約語との名前衝突 |
-| V007 | adapter が boundary の op を充足していない |
-| V008 | `bind` の型不一致 |
-| V009 | 同名宣言の重複 |
-| W001 | boundary に adapter がない |
-| W002 | 未定義の型参照 (ext, Error, registered types は免除) |
-| W003 | 多重 implements |
-| W004 | @path ファイル不在 (IO) |
+**出力例:**
 
-ルールは合成可能:
+```
+plat-verify: order-service (go)
 
-```haskell
-checkWith (coreRules ++ dddRules ++ cqrsRules) architecture
+[E002] boundary OrderRepository not found
+       expected: interface in port/
+[S001] model Order: missing field "shipping"
+       expected: Address (in domain/order.go)
+[R001] adapter PostgresOrderRepo does not implement OrderRepository
+       missing methods: findAll, delete
+       source: infra/postgres_order_repo.go:12
+
+── Summary ────────────────────────────────────────
+  2 error(s), 1 warning(s), 0 info
+  declarations: 15 checked, 13 ok, 2 issues
+  convergence:  types 13/15, fields 27/28, methods 6/8
+  health score: 90%
 ```
 
-## Extension Mechanism
+**追加モード:**
 
-拡張は **core の DeclItem を変更しない**。smart constructor + `meta` タグの薄いラッパーとして実装される。
+```bash
+# --suggest: drift findings から manifest パッチを提案
+plat-verify manifest.json --suggest
 
-| Module | Vocabulary | Domain |
-|--------|-----------|--------|
+# --contracts: 2つの manifest 間の互換性を検証
+plat-verify consumer.json --contracts provider.json
+
+# --init: ソースコードから manifest を逆生成
+plat-verify --init --name my-service --root ./src --language go
+```
+
+### plat-doc — ドキュメント生成
+
+manifest から Markdown ドキュメント、Mermaid 図、DSM (Dependency Structure Matrix) を生成する。
+
+```bash
+# Markdown ドキュメント
+plat-doc manifest.json --format markdown > architecture.md
+
+# Mermaid ダイアグラム
+plat-doc manifest.json --format mermaid > architecture.mmd
+
+# DSM (依存構造マトリクス)
+plat-doc manifest.json --format dsm
+```
+
+### plat-skeleton — コードスカフォールド生成
+
+manifest から型定義・インターフェース・構造体のスケルトンコードを生成する。
+
+```bash
+plat-skeleton manifest.json --language go --output ./src \
+  --layer-dir domain=domain \
+  --layer-dir interface=port \
+  --layer-dir application=usecase \
+  --layer-dir framework=infra \
+  --module example.com/myservice
+```
+
+### plat-contract — テストスケルトン生成
+
+boundary の ops からインターフェーステストのスケルトンを生成する。
+
+```bash
+plat-contract manifest.json --language go --output ./test \
+  --layer-dir interface=port
+```
+
+### plat-deprules — linter 依存ルール生成
+
+レイヤー依存定義から linter の設定ファイルを生成する。
+
+```bash
+# 依存マトリクス表示
+plat-deprules manifest.json --format matrix
+
+# Go depguard 設定
+plat-deprules manifest.json --format depguard \
+  --module example.com/myservice \
+  --layer-dir domain=domain \
+  --layer-dir interface=port
+
+# ESLint import ルール
+plat-deprules manifest.json --format eslint \
+  --layer-dir domain=src/domain \
+  --layer-dir interface=src/port
+```
+
+---
+
+## 設定ファイル
+
+`plat-verify.toml` で plat-verify の挙動をカスタマイズする。
+
+```toml
+[source]
+language = "go"          # go | typescript | rust
+root = "./src"           # ソースルート
+layer_match = "prefix"   # prefix | component
+
+[source.layer_dirs]      # レイヤー → ディレクトリ
+domain      = "domain"
+interface   = "port"
+application = "usecase"
+infra       = "infra"
+
+[types]                  # manifest 型 → ソース型の追加マッピング
+UUID = "uuid.UUID"
+Money = "domain.Money"
+
+[naming]
+type_case   = "PascalCase"   # 型名の命名規約
+field_case  = "camelCase"    # フィールド名 (Go: PascalCase, TS: camelCase, Rust: snake_case)
+method_case = "PascalCase"   # メソッド名 (同上)
+
+[checks]
+existence  = true
+structure  = true
+relation   = true
+drift      = false           # opt-in
+layer_deps = false           # opt-in
+imports    = false           # opt-in
+naming     = false           # opt-in
+
+[checks.severity]            # 個別チェックの severity 変更
+S002 = "warning"
+```
+
+### layer_match
+
+| Mode | 対象の構成 | 例 |
+|------|-----------|-----|
+| `prefix` | レイヤーファースト | `domain/order.go`, `port/repo.go` |
+| `component` | フィーチャーファースト | `order/domain/model.go`, `order/port/repo.go` |
+
+### 言語別デフォルト型マッピング
+
+| Manifest | Go | TypeScript | Rust |
+|----------|-----|-----------|------|
+| `String` | `string` | `string` | `String` |
+| `Int` | `int` | `number` | `i64` |
+| `Bool` | `bool` | `boolean` | `bool` |
+| `List<T>` | `[]T` | `T[]` | `Vec<T>` |
+| `Map<K,V>` | `map[K]V` | `Map<K,V>` | `HashMap<K,V>` |
+| `DateTime` | `time.Time` | `Date` | `DateTime<Utc>` |
+| `Error` | `error` | `Error` | `Result<T, String>` |
+
+全マッピングは [docs/plat-verify-spec.md](docs/plat-verify-spec.md) を参照。
+
+---
+
+## manifest.json フォーマット
+
+5 種類の宣言 (`kind`) でアーキテクチャを記述する:
+
+| Kind | 用途 | 主要フィールド |
+|------|------|---------------|
+| `model` | データ構造 | `fields` |
+| `boundary` | ポート / インターフェース | `ops` |
+| `operation` | ユースケース | `inputs`, `outputs`, `needs` |
+| `adapter` | 外部実装 | `implements`, `injects` |
+| `compose` | 配線 | `entries` |
+
+これらは `layers` に配置され、レイヤー間の依存方向が制約される。
+
+```jsonc
+{
+  "schema_version": "0.6",
+  "name": "my-service",
+  "layers": [
+    { "name": "domain", "depends": [] },
+    { "name": "port",   "depends": ["domain"] },
+    { "name": "app",    "depends": ["domain", "port"] },
+    { "name": "infra",  "depends": ["domain", "port", "app"] }
+  ],
+  "declarations": [
+    {
+      "name": "Order",
+      "kind": "model",
+      "layer": "domain",
+      "fields": [
+        { "name": "ID", "type": "String" },
+        { "name": "Total", "type": "Decimal" }
+      ]
+    },
+    {
+      "name": "OrderRepository",
+      "kind": "boundary",
+      "layer": "port",
+      "ops": [
+        {
+          "name": "Save",
+          "inputs": [{ "name": "order", "type": "Order" }],
+          "outputs": [{ "name": "", "type": "Error" }]
+        }
+      ]
+    },
+    {
+      "name": "PlaceOrder",
+      "kind": "operation",
+      "layer": "app",
+      "needs": ["OrderRepository"],
+      "inputs": [{ "name": "order", "type": "Order" }],
+      "outputs": [{ "name": "err", "type": "Error" }]
+    },
+    {
+      "name": "PostgresOrderRepo",
+      "kind": "adapter",
+      "layer": "infra",
+      "implements": "OrderRepository",
+      "injects": [{ "name": "db", "type": "ext:*sql.DB" }]
+    }
+  ],
+  "bindings": [
+    { "boundary": "OrderRepository", "adapter": "PostgresOrderRepo" }
+  ]
+}
+```
+
+完全な仕様: [docs/spec/manifest.md](docs/spec/manifest.md)
+
+---
+
+## CI 統合
+
+```yaml
+# GitHub Actions
+steps:
+  - uses: actions/checkout@v4
+
+  # Haskell eDSL から manifest を生成する場合
+  - name: Generate manifest
+    run: cabal run my-arch
+
+  # 検証
+  - name: Verify architecture conformance
+    run: plat-verify manifest.json -c plat-verify.toml --format json --severity error
+
+  # Exit code: 0 = pass, 1 = error found, 2 = input error
+```
+
+`--format lsp` で LSP Diagnostic 形式の JSON を出力でき、エディタ統合やカスタムレポートに利用できる。
+
+### VS Code 拡張
+
+`editors/vscode/` に LSP クライアント拡張がある。manifest ファイルを自動検出し、保存時に検証結果をエディタに表示する。
+
+---
+
+## Examples
+
+| Example | 言語 | 構成 | 特徴 |
+|---------|------|------|------|
+| [`go-clean-arch`](examples/go-clean-arch/) | Go | Clean Architecture | 5 ドメイン, 拡張 (DDD, CleanArch, Http) |
+| [`go-feature-sliced`](examples/go-feature-sliced/) | Go | Feature-Sliced | `layer_match = "component"` |
+| [`ts-hexagonal`](examples/ts-hexagonal/) | TypeScript | Hexagonal | TS class + interface |
+| [`rust-cqrs-es`](examples/rust-cqrs-es/) | Rust | CQRS + Event Sourcing | trait + impl |
+| [`cross-language`](examples/cross-language/) | Go + TS | マルチサービス | `--contracts` でサービス間検証 |
+| [`poc-roundtrip`](examples/poc-roundtrip/) | Go | ラウンドトリップ | `--init` → 手動洗練 → verify |
+
+---
+
+## Haskell eDSL リファレンス
+
+### 拡張モジュール
+
+core の `DeclItem` を変更せず、smart constructor + `meta` タグで語彙を拡張する:
+
+| Module | 語彙 | ドメイン |
+|--------|------|---------|
 | `Plat.Ext.DDD` | `value`, `aggregate`, `enum`, `invariant` | Domain-Driven Design |
 | `Plat.Ext.CQRS` | `command`, `query` | Command-Query Separation |
 | `Plat.Ext.CleanArch` | `entity`, `port`, `impl`, `wire` + preset layers | Clean Architecture |
@@ -278,59 +447,73 @@ checkWith (coreRules ++ dddRules ++ cqrsRules) architecture
 | `Plat.Ext.Events` | `event`, `emit`, `on_`, `apply` | Event Sourcing |
 | `Plat.Ext.Modules` | `domain`, `expose`, `import_` | Module boundaries |
 
-## Output
+### 検証ルール
 
-| Format | Function | Use case |
-|--------|----------|----------|
-| Mermaid | `renderMermaid` | ダイアグラム |
-| Markdown | `renderMarkdown` | ドキュメント生成 |
-| JSON manifest | `renderManifest` | Rust ツール群への入力 |
-
-## plat-verify
-
-manifest と実装ソースの構造的適合性を検証するスタンドアロンツール (Rust)。
-
-| Category | Codes | Description |
-|----------|-------|-------------|
-| Existence | E0xx | 宣言に対応する型がソースに存在するか |
-| Structure | S0xx | フィールド・メソッドの構造が一致するか |
-| Relation | R0xx | implements/needs 関係が実装されているか |
-| Drift | T0xx | manifest にない実装の検出 (opt-in) |
-| Layer Deps | L0xx | レイヤー依存方向の検証 (opt-in) |
-
-詳細: [docs/plat-verify-spec.md](docs/plat-verify-spec.md)
-
-## Type Expressions
+`check :: Architecture -> CheckResult` で検証を実行。ルールは合成可能:
 
 ```haskell
-field "id"     (customType "UUID")     -- registerType "UUID" が必要
-field "total"  decimal                 -- ビルトイン
-field "items"  (list (ref orderItem))  -- 他の宣言への参照
-field "items"  (listOf orderItem)      -- 参照コンビネータ (shorthand)
-inject "db"    (ext "*sql.DB")         -- 外部型 (TExt, W002 免除)
-field "err"    error_                  -- 予約型
+checkWith (coreRules ++ dddRules ++ cqrsRules) architecture
 ```
 
-## Development
+| Code | 内容 |
+|------|------|
+| V001 | レイヤー依存違反 |
+| V002 | レイヤー循環依存 |
+| V003 | `needs` の対象が boundary でない |
+| V004 | boundary に adapter 固有の要素 |
+| V005 | compose 外での `bind` |
+| V006 | 予約語との名前衝突 |
+| V007 | adapter が boundary の op を充足していない |
+| V008 | `bind` の型不一致 |
+| V009 | 同名宣言の重複 |
+| V010 | relation の参照先が存在しない |
+| W001 | boundary に adapter がない |
+| W002 | 未定義の型参照 |
+| W003 | 多重 implements |
+| W004 | @path ファイル不在 |
 
+---
+
+## ビルド
+
+```bash
+# Rust ツール群
+cargo build                     # 全ツールビルド
+cargo test                      # 全テスト (172 tests)
+
+# Haskell eDSL
+cabal build                     # ライブラリビルド
+cabal test                      # 全テスト (240 tests)
+
+# mise タスク (利用可能な場合)
+mise run build
+mise run test
 ```
-mise run build            # Build
-mise run test             # 226 tests
-mise run lint             # -Werror
-mise run repl             # GHCi
-mise run watch            # Rebuild on change
-mise run verify:build     # Build plat-verify (Rust)
-mise run verify:test      # Test plat-verify (Rust)
-```
 
-Requires GHC >= 9.10 (GHC2024, recommended 9.12+). `OverloadedStrings` のみ必須。
+**前提条件:**
+- Rust stable ([rustup](https://rustup.rs/))
+- GHC >= 9.10 + cabal >= 3.0 ([ghcup](https://www.haskell.org/ghcup/)) — Haskell eDSL を使う場合
 
-## Documentation
+---
 
-- [docs/spec/](docs/spec/) — 正式仕様 (体系的に分割)
-- [docs/architecture.md](docs/architecture.md) — モジュール構成、AST 設計、モナド設計
-- [docs/validation-rules.md](docs/validation-rules.md) — 全ルールの詳細仕様
-- [docs/extensions.md](docs/extensions.md) — 拡張パターンと meta タグ一覧
-- [docs/plat-verify-spec.md](docs/plat-verify-spec.md) — plat-verify 仕様
-- [docs/tooling-direction.md](docs/tooling-direction.md) — Haskell/Rust 責務分離
-- [docs/roadmap.md](docs/roadmap.md) — 開発ロードマップ
+## ドキュメント
+
+### 仕様
+
+- [docs/spec/manifest.md](docs/spec/manifest.md) — manifest JSON フォーマット仕様
+- [docs/spec/](docs/spec/) — AST, 型システム, 検証, 制約, 代数, 関係, 拡張
+
+### ツール
+
+- [docs/plat-verify-spec.md](docs/plat-verify-spec.md) — plat-verify 仕様 (チェックコード, 型マッピング, tree-sitter 抽出)
+- [docs/tooling-direction.md](docs/tooling-direction.md) — Haskell/Rust 責務分離の設計方針
+
+### 設計
+
+- [docs/architecture.md](docs/architecture.md) — モジュール構成, AST 設計, モナド設計
+- [docs/validation-rules.md](docs/validation-rules.md) — 全検証ルールの詳細仕様
+- [docs/extensions.md](docs/extensions.md) — 拡張の設計パターンと meta タグ一覧
+
+### 形式仕様
+
+- [docs/formal/](docs/formal/) — BNF 構文, 検証述語, 代数的性質

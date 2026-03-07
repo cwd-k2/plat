@@ -12,7 +12,7 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
 
     for decl in &manifest.declarations {
         let type_name = config.convert_type_name(&decl.name);
-        let found = find_type_by_name(facts, &type_name, config);
+        let found = find_type_by_name(facts, &type_name, Some(&decl.name), config);
         let Some(td) = found else { continue }; // existence check handles missing types
 
         // S001/S002: model field checks

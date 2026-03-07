@@ -20,8 +20,8 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
         let adapter_src_name = config.convert_type_name(&decl.name);
         let boundary_src_name = config.convert_type_name(boundary_name);
 
-        let adapter_td = find_type_by_name(facts, &adapter_src_name, config);
-        let boundary_td = find_type_by_name(facts, &boundary_src_name, config);
+        let adapter_td = find_type_by_name(facts, &adapter_src_name, Some(&decl.name), config);
+        let boundary_td = find_type_by_name(facts, &boundary_src_name, Some(boundary_name), config);
 
         let (Some(adapter), Some(boundary)) = (adapter_td, boundary_td) else {
             continue;
@@ -35,8 +35,8 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
         let adapter_src_name = config.convert_type_name(&binding.adapter);
         let boundary_src_name = config.convert_type_name(&binding.boundary);
 
-        let adapter_td = find_type_by_name(facts, &adapter_src_name, config);
-        let boundary_td = find_type_by_name(facts, &boundary_src_name, config);
+        let adapter_td = find_type_by_name(facts, &adapter_src_name, Some(&binding.adapter), config);
+        let boundary_td = find_type_by_name(facts, &boundary_src_name, Some(&binding.boundary), config);
 
         let (Some(adapter), Some(boundary)) = (adapter_td, boundary_td) else {
             continue;

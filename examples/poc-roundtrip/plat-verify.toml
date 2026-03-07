@@ -1,0 +1,10 @@
+[source]
+language = "go"
+root = "."
+layer_match = "component"
+
+[source.layer_dirs]
+core = "domain"
+interface = "port"
+application = "usecase"
+infra = "infra"

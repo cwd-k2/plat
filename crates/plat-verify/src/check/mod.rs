@@ -115,7 +115,7 @@ pub fn compute_convergence(
         conv.types_expected += 1;
 
         let expected_name = config.convert_type_name(&decl.name);
-        let td = find_type_by_name(facts, &expected_name, config);
+        let td = find_type_by_name(facts, &expected_name, Some(&decl.name), config);
 
         if let Some(td) = td {
             conv.types_found += 1;
@@ -188,20 +188,37 @@ pub(crate) fn normalize_type(t: &str) -> String {
     t.to_string()
 }
 
-/// Find a type by name across all facts, with Go package-prefix fallback.
+/// Find a type by name across all facts, with naming convention and
+/// Go package-prefix fallbacks.
 ///
-/// In Go, `PostgresOrderRepo` may exist as `OrderRepo` in package `postgres`.
-/// When exact match fails, tries suffix-matching against the expected name.
+/// Search order:
+/// 1. Exact match on converted name (e.g. `convert_go("SQLiteTaskRepo")`)
+/// 2. Exact match on original manifest name (handles compound words like
+///    `SQLite` that `convert_go` may transform incorrectly)
+/// 3. Go suffix fallback: `PostgresOrderRepo` matches source `OrderRepo`
 pub fn find_type_by_name<'a>(
     facts: &'a [FileFacts],
     expected_name: &str,
+    original_name: Option<&str>,
     config: &Config,
 ) -> Option<&'a crate::extract::TypeDef> {
-    // Exact match
+    // Exact match on converted name
     for file in facts {
         for td in &file.types {
             if td.name == expected_name {
                 return Some(td);
+            }
+        }
+    }
+    // Fallback: original manifest name (before naming convention conversion)
+    if let Some(orig) = original_name {
+        if orig != expected_name {
+            for file in facts {
+                for td in &file.types {
+                    if td.name == orig {
+                        return Some(td);
+                    }
+                }
             }
         }
     }

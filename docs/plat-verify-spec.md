@@ -316,8 +316,37 @@ layer_deps = true  # opt-in, default false
 |------|----------|-----------|
 | T001 | info | layer ディレクトリにソース型が存在するが manifest に対応する宣言がない |
 | T002 | info | ソース struct のフィールドが manifest に存在しない (余剰フィールド) |
+| T003 | info | ソース型のメソッドが manifest の ops に存在しない (余剰メソッド) |
+| T004 | warning | ソース型が manifest にない interface/trait を実装している (未宣言 implements) |
 
 drift チェックはデフォルト無効。`checks.drift = true` で有効化。
+
+### I0xx: Import Graph (インポート解析, opt-in)
+
+| Code | Severity | Condition |
+|------|----------|-----------|
+| I001 | warning | import/use 文が layer 依存方向に違反している |
+| I002 | error | import グラフにサイクルが存在する |
+
+ソースコードの import/use 文を解析し、`layers[].depends` で定義された依存方向との整合性を検証する。
+
+```toml
+[checks]
+imports = true  # opt-in, default false
+```
+
+### N0xx: Naming (命名規約, opt-in)
+
+| Code | Severity | Condition |
+|------|----------|-----------|
+| N001 | info | 型名が言語の命名規約に違反している |
+| N002 | info | フィールド名が言語の命名規約に違反している |
+| N003 | info | メソッド名が言語の命名規約に違反している |
+
+```toml
+[checks]
+naming = true  # opt-in, default false
+```
 
 ## 6. Report Format
 
@@ -337,12 +366,22 @@ plat-verify: order-service (go)
        missing methods: findAll, delete
        source: infra/postgres_order_repo.go:12
 
-── Summary ──────────────────────────────────
-  2 errors, 1 warning, 0 info
+── Summary ────────────────────────────────────────
+  2 error(s), 1 warning(s), 0 info
   declarations: 15 checked, 13 ok, 2 issues
-  fields: 28 checked, 27 ok, 1 missing
-  ops: 8 checked, 6 ok, 2 missing
+  convergence:  types 13/15, fields 27/28, methods 6/8
+  health score: 90%
 ```
+
+### Convergence / Health Score
+
+Reflexion Model に基づくアーキテクチャ健全性スコア。manifest の各要素がソースでどの程度確認できたかを計測する:
+
+- **完全一致 (1.0)**: 名前と型/シグネチャが一致
+- **部分一致 (0.5)**: 名前は一致するが型/パラメータ数が異なる
+- **不在 (0.0)**: ソースに存在しない
+
+`health score = (完全一致数 + 部分一致数 × 0.5) / 期待数`
 
 ### JSON 出力 (`--format json`)
 
@@ -382,21 +421,26 @@ plat-verify: order-service (go)
 ## 7. CLI Interface
 
 ```
-plat-verify [OPTIONS] <MANIFEST>
+plat-verify [OPTIONS] [MANIFEST]
 
 Arguments:
-  <MANIFEST>    manifest JSON ファイルのパス
+  [MANIFEST]    manifest JSON ファイルのパス (--init では省略可)
 
 Options:
-  -c, --config <PATH>     設定ファイル (default: ./plat-verify.toml)
-  -r, --root <DIR>        ソースルート (設定ファイルの source.root を上書き)
-  -l, --language <LANG>   言語 (go|typescript|rust, 設定ファイルを上書き)
-  -f, --format <FMT>      出力形式 (text|json, default: text)
-      --check <CATEGORY>  有効にするチェックカテゴリ (複数指定可, 指定時は config を上書き)
-                           existence | structure | relation | drift | layer-deps
-      --severity <LEVEL>  表示する最低 severity (error|warning|info, default: info)
-  -q, --quiet             summary のみ出力
-  -v, --verbose           抽出した全 fact を表示 (デバッグ用)
+  -c, --config <PATH>           設定ファイル (default: ./plat-verify.toml)
+  -r, --root <DIR>              ソースルート (設定ファイルの source.root を上書き)
+  -l, --language <LANG>         言語 (go|typescript|rust, 設定ファイルを上書き)
+  -f, --format <FMT>            出力形式 (text|json|lsp, default: text)
+      --check <CATEGORY>        有効にするチェックカテゴリ (複数指定可, 指定時は config を上書き)
+                                 existence | structure | relation | drift | layer-deps | imports | naming
+      --severity <LEVEL>        表示する最低 severity (error|warning|info, default: info)
+  -q, --quiet                   summary のみ出力
+  -w, --watch                   ファイル変更時に自動再検証
+      --lsp                     LSP サーバーモード (stdin/stdout)
+      --suggest                 drift findings から manifest パッチを提案
+      --contracts <PROVIDER>    manifest 間の契約互換性を検証
+      --init                    ソースコードから manifest を逆生成
+      --name <NAME>             --init の出力名 (default: my-service)
   -h, --help
   -V, --version
 ```
@@ -493,26 +537,35 @@ steps:
 src/
   main.rs              -- CLI entry point, cache 統合
   config.rs            -- 設定ファイル読み込み + LayerMatch enum
-  manifest.rs          -- manifest JSON のデシリアライズ + 型定義
   cache.rs             -- ファイルレベルインクリメンタルキャッシュ (mtime + size)
+  init.rs              -- --init: ソースからの manifest 逆生成
+  suggest.rs           -- --suggest: drift → manifest パッチ提案
+  contracts.rs         -- --contracts: manifest 間互換性検証
   extract/
     mod.rs             -- TypeDef 型定義, extract_all, resolve_layer, parse dispatch
-    go.rs              -- Go tree-sitter extraction (new_parser, is_test_file, parse_file)
+    go.rs              -- Go tree-sitter extraction
     typescript.rs      -- TypeScript tree-sitter extraction
     rust.rs            -- Rust tree-sitter extraction
   check/
-    mod.rs             -- Check engine + Finding 型
+    mod.rs             -- Check engine, Finding, Convergence, find_type_by_name
     existence.rs       -- E0xx checks
     structure.rs       -- S0xx checks
     relation.rs        -- R0xx checks
     compose.rs         -- R003/R004 manifest 内部整合性
     layer_deps.rs      -- L0xx layer 依存方向
     drift.rs           -- T0xx drift 検出
+    import_graph.rs    -- I0xx import 解析
+    naming.rs          -- N0xx 命名規約チェック
   report/
     mod.rs             -- Report dispatch
     text.rs            -- テキスト出力
     json.rs            -- JSON 出力
-  naming.rs            -- 名前変換 (PascalCase, camelCase, snake_case)
+```
+
+plat-manifest crate (共通):
+
+```
+  naming.rs            -- 名前変換 (PascalCase, camelCase, snake_case, Go acronyms)
   typemap.rs           -- 型マッピング + 比較 + 型参照抽出
 ```
 
@@ -591,10 +644,21 @@ src/
 - ファイルレベルインクリメンタルキャッシュ (mtime + size)
 - extraction pipeline リファクタリング (I/O とパースの分離)
 
-### Phase 4: Future
+### Phase 4: Editor Integration — complete
 
-- `--watch` モード (ファイル変更時に自動再検証)
-- LSP 連携のための finding 出力 (Diagnostic 互換形式)
+- `--watch` モード (notify ベース、debounce 付きファイル監視)
+- `--lsp` モード (lsp-server crate、didSave → publishDiagnostics)
+- `--format lsp` (LSP Diagnostic 互換 JSON のバッチ出力)
+- VS Code extension (`editors/vscode/`)
+
+### Phase 5: Advanced Modes — complete
+
+- `--suggest`: drift findings (T001-T003) から manifest パッチ JSON を生成
+- `--contracts`: 2 manifest 間の互換性検証 (CT001-CT003)
+- `--init`: ソースコードから manifest を逆生成 (boundary/adapter/operation/model の推論)
+- I0xx: import/use 文の解析によるレイヤー越えインポート・サイクル検出
+- N0xx: 言語別の命名規約チェック
+- Convergence / health score: Reflexion Model ベースの健全性指標
 
 ## 11. Scope Boundary
 
@@ -618,7 +682,7 @@ plat-verify が**やらないこと**:
 
 ### 名前変換
 
-- **Go の略語慣習**: Go は `ID`, `URL`, `HTTP` 等の略語を全大文字にする慣習がある。plat-verify の PascalCase 変換は `id` → `Id` を生成するため、Go の `ID` とは一致しない。現時点ではワークアラウンドとして `[naming]` で case チェックを緩めるか、manifest 側で Go の命名に合わせる必要がある
+- **Go の略語慣習**: Go は `ID`, `URL`, `HTTP` 等の略語を全大文字にする慣習がある。plat-verify は Go の標準略語リスト (`ID`, `URL`, `HTTP`, `API`, `SQL` 等) を認識して変換する。ただし `SQLite` のような複合略語は変換が非冪等になるため、manifest 名と一致しない場合は元の manifest 名でのフォールバック検索を行う
 - **言語固有の予約語**: manifest の名前がターゲット言語の予約語と衝突する場合のエスケープは未対応
 
 ### 型マッピング
@@ -637,4 +701,4 @@ plat-verify が**やらないこと**:
 
 - **Go の duck typing**: R001 (implements) チェックで Go の暗黙的インターフェース実装の検出は、メソッドシグネチャの完全一致ではなくメソッド名の存在のみで判定する
 - **T0xx (drift)**: デフォルト無効 (`checks.drift = true` で有効化)。大規模コードベースでの誤検出率は未検証
-- **L001 (layer deps)**: manifest データのみで動作。ソースの import/use からの依存検出は将来の拡張
+- **L001 (layer deps)**: manifest データのみで動作。ソースの import/use からの依存検出は I0xx (import graph) チェックで対応

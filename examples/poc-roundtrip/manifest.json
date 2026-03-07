@@ -1,0 +1,156 @@
+{
+  "schema_version": "0.6",
+  "name": "todo-service",
+  "layers": [
+    { "name": "core", "depends": [] },
+    { "name": "interface", "depends": ["core"] },
+    { "name": "application", "depends": ["core", "interface"] },
+    { "name": "infra", "depends": ["core", "interface", "application"] }
+  ],
+  "type_aliases": [],
+  "custom_types": [],
+  "declarations": [
+    {
+      "name": "Priority",
+      "kind": "model",
+      "layer": "core",
+      "paths": ["domain/task.go"],
+      "fields": [],
+      "ops": [], "inputs": [], "outputs": [],
+      "needs": [], "implements": null, "injects": [], "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "Task",
+      "kind": "model",
+      "layer": "core",
+      "paths": ["domain/task.go"],
+      "fields": [
+        { "name": "ID", "type": "String" },
+        { "name": "Title", "type": "String" },
+        { "name": "Description", "type": "String" },
+        { "name": "Priority", "type": "Priority" },
+        { "name": "Done", "type": "Bool" },
+        { "name": "CreatedAt", "type": "DateTime" }
+      ],
+      "ops": [], "inputs": [], "outputs": [],
+      "needs": [], "implements": null, "injects": [], "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "TaskRepository",
+      "kind": "boundary",
+      "layer": "interface",
+      "paths": ["port/task_repo.go"],
+      "fields": [],
+      "ops": [
+        { "name": "Save", "inputs": [{ "name": "task", "type": "Task" }], "outputs": [{ "name": "", "type": "Error" }] },
+        { "name": "FindByID", "inputs": [{ "name": "id", "type": "String" }], "outputs": [{ "name": "", "type": "Task" }, { "name": "", "type": "Error" }] },
+        { "name": "ListAll", "inputs": [], "outputs": [{ "name": "", "type": "List<Task>" }, { "name": "", "type": "Error" }] },
+        { "name": "Delete", "inputs": [{ "name": "id", "type": "String" }], "outputs": [{ "name": "", "type": "Error" }] }
+      ],
+      "inputs": [], "outputs": [],
+      "needs": [], "implements": null, "injects": [], "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "Notifier",
+      "kind": "boundary",
+      "layer": "interface",
+      "paths": ["port/notifier.go"],
+      "fields": [],
+      "ops": [
+        { "name": "NotifyCreated", "inputs": [{ "name": "taskID", "type": "String" }, { "name": "title", "type": "String" }], "outputs": [{ "name": "", "type": "Error" }] }
+      ],
+      "inputs": [], "outputs": [],
+      "needs": [], "implements": null, "injects": [], "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "CreateTask",
+      "kind": "operation",
+      "layer": "application",
+      "paths": ["usecase/create_task.go"],
+      "fields": [],
+      "ops": [],
+      "inputs": [
+        { "name": "title", "type": "String" },
+        { "name": "description", "type": "String" },
+        { "name": "priority", "type": "Priority" }
+      ],
+      "outputs": [
+        { "name": "task", "type": "Task" }
+      ],
+      "needs": ["TaskRepository", "Notifier"],
+      "implements": null, "injects": [], "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "ListTasks",
+      "kind": "operation",
+      "layer": "application",
+      "paths": ["usecase/list_tasks.go"],
+      "fields": [],
+      "ops": [],
+      "inputs": [],
+      "outputs": [
+        { "name": "tasks", "type": "List<Task>" }
+      ],
+      "needs": ["TaskRepository"],
+      "implements": null, "injects": [], "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "SQLiteTaskRepo",
+      "kind": "adapter",
+      "layer": "infra",
+      "paths": ["infra/sqlite_repo.go"],
+      "fields": [],
+      "ops": [],
+      "inputs": [], "outputs": [],
+      "needs": [],
+      "implements": "TaskRepository",
+      "injects": [{ "name": "db", "type": "ext:*sql.DB" }],
+      "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "LogNotifier",
+      "kind": "adapter",
+      "layer": "infra",
+      "paths": ["infra/log_notifier.go"],
+      "fields": [],
+      "ops": [],
+      "inputs": [], "outputs": [],
+      "needs": [],
+      "implements": "Notifier",
+      "injects": [],
+      "entries": [],
+      "service": null, "meta": {}
+    },
+    {
+      "name": "TaskHandler",
+      "kind": "adapter",
+      "layer": "infra",
+      "paths": ["infra/http_handler.go"],
+      "fields": [],
+      "ops": [],
+      "inputs": [], "outputs": [],
+      "needs": [],
+      "implements": null,
+      "injects": [
+        { "name": "createTask", "type": "CreateTask" },
+        { "name": "listTasks", "type": "ListTasks" }
+      ],
+      "entries": [],
+      "service": null, "meta": {}
+    }
+  ],
+  "bindings": [
+    { "boundary": "TaskRepository", "adapter": "SQLiteTaskRepo" },
+    { "boundary": "Notifier", "adapter": "LogNotifier" }
+  ],
+  "constraints": [],
+  "relations": [],
+  "meta": {}
+}
