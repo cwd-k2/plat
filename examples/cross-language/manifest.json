@@ -1,0 +1,99 @@
+{
+  "name": "order-platform",
+  "layers": [
+    { "name": "enterprise", "depends": [] },
+    { "name": "interface", "depends": ["enterprise"] },
+    { "name": "application", "depends": ["enterprise", "interface"] },
+    { "name": "framework", "depends": ["enterprise", "interface", "application"] }
+  ],
+  "declarations": [
+    {
+      "name": "Order",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [
+        { "name": "id", "type": "UUID" },
+        { "name": "customerId", "type": "UUID" },
+        { "name": "total", "type": "Decimal" },
+        { "name": "status", "type": "OrderStatus" }
+      ],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "OrderStatus",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "OrderRepository",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [
+        {
+          "name": "Save",
+          "inputs": [{ "name": "order", "type": "Order" }],
+          "outputs": [{ "name": "err", "type": "Error" }]
+        },
+        {
+          "name": "FindById",
+          "inputs": [{ "name": "id", "type": "UUID" }],
+          "outputs": [{ "name": "order", "type": "Order" }, { "name": "err", "type": "Error" }]
+        }
+      ],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "PlaceOrder",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["OrderRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "PostgresOrderRepo",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "OrderRepository",
+      "injects": [],
+      "entries": [],
+      "service": "go-api"
+    },
+    {
+      "name": "HttpOrderRepo",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "OrderRepository",
+      "injects": [{ "name": "baseUrl", "type": "String" }],
+      "entries": [],
+      "service": "ts-web"
+    }
+  ],
+  "bindings": [
+    { "boundary": "OrderRepository", "adapter": "PostgresOrderRepo" },
+    { "boundary": "OrderRepository", "adapter": "HttpOrderRepo" }
+  ]
+}

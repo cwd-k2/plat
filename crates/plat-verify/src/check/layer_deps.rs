@@ -157,6 +157,7 @@ mod tests {
             implements: None,
             injects: vec![],
             entries: vec![],
+            service: None,
             meta: Default::default(),
         }
     }
@@ -175,6 +176,7 @@ mod tests {
             implements: None,
             injects: vec![],
             entries: vec![],
+            service: None,
             meta: Default::default(),
         }
     }
@@ -193,6 +195,7 @@ mod tests {
             implements: None,
             injects: vec![],
             entries: vec![],
+            service: None,
             meta: Default::default(),
         }
     }

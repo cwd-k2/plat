@@ -107,6 +107,68 @@ impl std::fmt::Display for Severity {
     }
 }
 
+/// Multi-service configuration for cross-language verification.
+#[derive(Debug, Deserialize)]
+pub struct MultiServiceConfig {
+    pub service: Vec<ServiceConfig>,
+}
+
+/// A single service in a multi-service configuration.
+#[derive(Debug, Deserialize)]
+pub struct ServiceConfig {
+    pub name: String,
+    pub language: Language,
+    #[serde(default = "default_root")]
+    pub root: PathBuf,
+    #[serde(default)]
+    pub layer_dirs: HashMap<String, String>,
+    #[serde(default)]
+    pub layer_match: LayerMatch,
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    #[serde(default)]
+    pub types: HashMap<String, String>,
+}
+
+impl ServiceConfig {
+    /// Convert a ServiceConfig into a full Config for single-service verification.
+    pub fn to_config(&self) -> Config {
+        Config {
+            source: SourceConfig {
+                language: self.language,
+                root: self.root.clone(),
+                layer_dirs: self.layer_dirs.clone(),
+                layer_match: self.layer_match,
+                exclude: self.exclude.clone(),
+            },
+            types: self.types.clone(),
+            naming: NamingConfig::default(),
+            checks: ChecksConfig::default(),
+        }
+    }
+}
+
+/// Configuration file format — either single-service or multi-service.
+pub enum ConfigVariant {
+    Single(Config),
+    Multi(MultiServiceConfig),
+}
+
+impl ConfigVariant {
+    pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let text = std::fs::read_to_string(path)?;
+        // Try multi-service first (has [[service]] array)
+        if let Ok(multi) = toml::from_str::<MultiServiceConfig>(&text) {
+            if !multi.service.is_empty() {
+                return Ok(Self::Multi(multi));
+            }
+        }
+        // Fall back to single-service
+        let config: Config = toml::from_str(&text)?;
+        Ok(Self::Single(config))
+    }
+}
+
 impl Config {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let text = std::fs::read_to_string(path)?;

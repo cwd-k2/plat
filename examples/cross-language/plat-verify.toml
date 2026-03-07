@@ -1,0 +1,23 @@
+[[service]]
+name = "go-api"
+language = "go"
+root = "go-api"
+layer_match = "component"
+
+[service.layer_dirs]
+enterprise = "domain"
+interface = "port"
+application = "usecase"
+framework = "adapter"
+
+[[service]]
+name = "ts-web"
+language = "typescript"
+root = "ts-web"
+layer_match = "component"
+
+[service.layer_dirs]
+enterprise = "domain"
+interface = "port"
+application = "usecase"
+framework = "adapter"

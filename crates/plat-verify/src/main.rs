@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use clap::Parser;
 use notify::{RecursiveMode, Watcher};
 
-use config::{Config, Language, Severity};
+use config::{Config, ConfigVariant, Language, Severity};
 use report::Format;
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -169,17 +169,41 @@ fn verify_once(params: &VerifyParams) -> i32 {
 fn main() {
     let cli = Cli::parse();
 
-    // Load config
-    let mut config = if cli.config.exists() {
-        match Config::load(&cli.config) {
-            Ok(c) => c,
+    let format = match cli.format {
+        OutputFormat::Text => Format::Text,
+        OutputFormat::Json => Format::Json,
+        OutputFormat::Lsp => Format::Lsp,
+    };
+
+    let config_dir = cli.config.parent().map(|p| p.to_path_buf());
+
+    // Try loading config — detect multi-service vs single-service
+    if cli.config.exists() {
+        match ConfigVariant::load(&cli.config) {
+            Ok(ConfigVariant::Multi(multi)) => {
+                // Multi-service mode
+                let code = verify_multi(
+                    &cli.manifest,
+                    &multi.service,
+                    config_dir.as_deref(),
+                    cli.severity,
+                    format,
+                    cli.quiet,
+                );
+                process::exit(code);
+            }
+            Ok(ConfigVariant::Single(config)) => {
+                // Single-service mode — proceed as before
+                let config = apply_cli_overrides(config, &cli, config_dir.as_deref());
+                run_single(cli, config, format);
+            }
             Err(e) => {
                 eprintln!("error: cannot load config {}: {e}", cli.config.display());
                 process::exit(2);
             }
         }
     } else if cli.language.is_some() {
-        Config {
+        let config = Config {
             source: config::SourceConfig {
                 language: Language::from(cli.language.unwrap()),
                 root: cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
@@ -190,26 +214,25 @@ fn main() {
             types: Default::default(),
             naming: Default::default(),
             checks: Default::default(),
-        }
+        };
+        run_single(cli, config, format);
     } else {
         eprintln!("error: no config file found and no --language specified");
         process::exit(2);
-    };
+    }
+}
 
-    // Resolve root relative to config file directory (not CWD)
+fn apply_cli_overrides(mut config: Config, cli: &Cli, config_dir: Option<&std::path::Path>) -> Config {
     if let Some(ref root) = cli.root {
         config.source.root = root.clone();
-    } else if cli.config.exists() {
-        if let Some(config_dir) = cli.config.parent() {
-            if config.source.root.is_relative() {
-                config.source.root = config_dir.join(&config.source.root);
-            }
+    } else if let Some(dir) = config_dir {
+        if config.source.root.is_relative() {
+            config.source.root = dir.join(&config.source.root);
         }
     }
     if let Some(lang) = cli.language {
         config.source.language = Language::from(lang);
     }
-
     if !cli.checks.is_empty() {
         config.checks.existence = cli.checks.contains(&CheckCategory::Existence);
         config.checks.structure = cli.checks.contains(&CheckCategory::Structure);
@@ -219,13 +242,10 @@ fn main() {
         config.checks.imports = cli.checks.contains(&CheckCategory::Imports);
         config.checks.naming = cli.checks.contains(&CheckCategory::Naming);
     }
+    config
+}
 
-    let format = match cli.format {
-        OutputFormat::Text => Format::Text,
-        OutputFormat::Json => Format::Json,
-        OutputFormat::Lsp => Format::Lsp,
-    };
-
+fn run_single(cli: Cli, config: Config, format: Format) {
     let params = VerifyParams {
         manifest_path: cli.manifest,
         config,
@@ -245,6 +265,131 @@ fn main() {
         let code = verify_once(&params);
         process::exit(code);
     }
+}
+
+/// Filter manifest declarations for a specific service.
+///
+/// A declaration belongs to a service if:
+/// - Its `service` field matches the service name, OR
+/// - Its `service` field is None (shared across all services)
+fn filter_manifest_for_service(manifest: &plat_manifest::Manifest, service_name: &str) -> plat_manifest::Manifest {
+    let declarations: Vec<_> = manifest.declarations.iter()
+        .filter(|d| {
+            d.service.as_ref().map_or(true, |s| s == service_name)
+        })
+        .cloned()
+        .collect();
+
+    let decl_names: std::collections::HashSet<&str> = declarations.iter()
+        .map(|d| d.name.as_str())
+        .collect();
+
+    let bindings: Vec<_> = manifest.bindings.iter()
+        .filter(|b| decl_names.contains(b.adapter.as_str()) && decl_names.contains(b.boundary.as_str()))
+        .cloned()
+        .collect();
+
+    plat_manifest::Manifest {
+        schema_version: manifest.schema_version.clone(),
+        name: manifest.name.clone(),
+        layers: manifest.layers.clone(),
+        type_aliases: manifest.type_aliases.clone(),
+        custom_types: manifest.custom_types.clone(),
+        declarations,
+        bindings,
+        constraints: manifest.constraints.clone(),
+        relations: manifest.relations.clone(),
+        meta: manifest.meta.clone(),
+    }
+}
+
+/// Run multi-service verification. Returns exit code.
+fn verify_multi(
+    manifest_path: &PathBuf,
+    services: &[config::ServiceConfig],
+    config_dir: Option<&std::path::Path>,
+    severity: Severity,
+    format: Format,
+    quiet: bool,
+) -> i32 {
+    let manifest_text = match std::fs::read_to_string(manifest_path) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("error: cannot read manifest {}: {e}", manifest_path.display());
+            return 2;
+        }
+    };
+    let manifest: plat_manifest::Manifest = match serde_json::from_str(&manifest_text) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: invalid manifest JSON: {e}");
+            return 2;
+        }
+    };
+
+    let mut total_errors = 0;
+
+    for svc in services {
+        let mut config = svc.to_config();
+
+        // Resolve root relative to config file directory
+        if let Some(dir) = config_dir {
+            if config.source.root.is_relative() {
+                config.source.root = dir.join(&config.source.root);
+            }
+        }
+
+        let svc_manifest = filter_manifest_for_service(&manifest, &svc.name);
+
+        let cache_path = cache::cache_path_for(&config.source.root);
+        let mut cache = cache::ExtractCache::load(&cache_path);
+        let facts = match extract::extract_all(&config, Some(&mut cache)) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("error: extraction failed for service {}: {e}", svc.name);
+                total_errors += 1;
+                continue;
+            }
+        };
+        cache.prune();
+        let _ = cache.save(&cache_path);
+
+        let mut findings = check::run_checks(&svc_manifest, &facts, &config);
+        findings.retain(|f| f.severity >= severity);
+
+        let convergence = check::compute_convergence(&svc_manifest, &facts, &config);
+        let summary = check::Summary::from_findings(
+            &findings,
+            svc_manifest.declarations.len(),
+            convergence,
+        );
+
+        if !quiet {
+            let svc_label = format!("{} [{}]", manifest.name, svc.name);
+            let output = report::render(
+                &findings,
+                &summary,
+                &svc_label,
+                &config.source.language.to_string(),
+                format,
+            );
+            print!("{output}");
+            if services.len() > 1 {
+                println!();
+            }
+        } else {
+            println!(
+                "[{}] {} error(s), {} warning(s), {} info",
+                svc.name, summary.errors, summary.warnings, summary.info
+            );
+        }
+
+        if summary.errors > 0 {
+            total_errors += 1;
+        }
+    }
+
+    if total_errors > 0 { 1 } else { 0 }
 }
 
 /// Watch mode: monitor source root + manifest for changes, re-run verification.

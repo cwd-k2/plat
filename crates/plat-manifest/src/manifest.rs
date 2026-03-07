@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Manifest {
     #[serde(default = "default_schema_version")]
     pub schema_version: String,
@@ -26,21 +26,21 @@ fn default_schema_version() -> String {
     "0.6".to_string()
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Layer {
     pub name: String,
     #[serde(default)]
     pub depends: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TypeAlias {
     pub name: String,
     #[serde(rename = "type")]
     pub typ: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Declaration {
     pub name: String,
     pub kind: DeclKind,
@@ -62,6 +62,9 @@ pub struct Declaration {
     pub injects: Vec<Field>,
     #[serde(default)]
     pub entries: Vec<String>,
+    /// Service this declaration belongs to. None = shared across all services.
+    #[serde(default)]
+    pub service: Option<String>,
     #[serde(default)]
     pub meta: HashMap<String, String>,
 }
@@ -91,14 +94,14 @@ impl std::fmt::Display for DeclKind {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Field {
     pub name: String,
     #[serde(rename = "type")]
     pub typ: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Op {
     pub name: String,
     #[serde(default)]
@@ -107,19 +110,19 @@ pub struct Op {
     pub outputs: Vec<Field>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Binding {
     pub boundary: String,
     pub adapter: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Constraint {
     pub name: String,
     pub description: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Relation {
     pub kind: String,
     pub source: String,

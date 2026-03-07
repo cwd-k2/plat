@@ -106,6 +106,11 @@ fn extract_declarations(
                     types.push(td);
                 }
             }
+            "enum_declaration" => {
+                if let Some(td) = extract_enum(child, source, file) {
+                    types.push(td);
+                }
+            }
             _ => {}
         }
     }
@@ -222,6 +227,21 @@ fn extract_type_alias(node: tree_sitter::Node, source: &[u8], file: &Path) -> Op
         file: file.to_path_buf(),
         fields,
         methods,
+        implements: Vec::new(),
+    })
+}
+
+/// Extract an enum declaration as a type with no fields/methods.
+fn extract_enum(node: tree_sitter::Node, source: &[u8], file: &Path) -> Option<TypeDef> {
+    let name_node = node.child_by_field_name("name")?;
+    let name = node_text(name_node, source).to_string();
+
+    Some(TypeDef {
+        name,
+        kind: TypeDefKind::Class,
+        file: file.to_path_buf(),
+        fields: Vec::new(),
+        methods: Vec::new(),
         implements: Vec::new(),
     })
 }
@@ -594,6 +614,19 @@ class App {
         assert_eq!(app.fields[0].0, "config");
         assert_eq!(app.methods.len(), 1);
         assert_eq!(app.methods[0].name, "start");
+    }
+
+    #[test]
+    fn test_enum_extraction() {
+        let src = r#"
+export enum OrderStatus {
+  Draft = "draft",
+  Placed = "placed",
+}
+"#;
+        let types = parse(src);
+        assert_eq!(types.len(), 1);
+        assert_eq!(types[0].name, "OrderStatus");
     }
 
     #[test]
