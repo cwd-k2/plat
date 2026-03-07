@@ -63,6 +63,7 @@ module Plat.Core.Builder
   , registerType
   , declare
   , declares
+  , constrain
   ) where
 
 import Data.Text (Text)
@@ -302,11 +303,12 @@ data ArchBuild = ArchBuild
   , abTypes       :: [TypeAlias]
   , abCustomTypes :: [Text]
   , abDecls       :: [Declaration]
+  , abConstraints :: [ArchConstraint]
   , abMeta        :: [(Text, Text)]
   }
 
 emptyArchBuild :: ArchBuild
-emptyArchBuild = ArchBuild [] [] [] [] []
+emptyArchBuild = ArchBuild [] [] [] [] [] []
 
 -- | アーキテクチャビルダーモナド。レイヤー・型エイリアス・宣言を束ねて 'Architecture' を構築する。
 newtype ArchBuilder a = ArchBuilder (ArchBuild -> (a, ArchBuild))
@@ -337,6 +339,7 @@ arch name (ArchBuilder f) =
     , archTypes       = reverse (abTypes ab)
     , archCustomTypes = reverse (abCustomTypes ab)
     , archDecls       = reverse (abDecls ab)
+    , archConstraints = reverse (abConstraints ab)
     , archMeta        = reverse (abMeta ab)
     }
 
@@ -359,3 +362,15 @@ declare (Decl d) = ArchBuilder $ \s -> ((), s { abDecls = d : abDecls s })
 -- | 複数の untagged 'Declaration' を一括登録する。動的に生成した宣言の注入に使う。
 declares :: [Declaration] -> ArchBuilder ()
 declares ds = ArchBuilder $ \s -> ((), s { abDecls = reverse ds ++ abDecls s })
+
+-- | アーキテクチャ制約を宣言する。検査関数は違反メッセージのリストを返す。
+--
+-- @
+-- constrain "adapter-has-impl"
+--   "every adapter must implement a boundary" $
+--   require Adapter "has no implements"
+--     (\\d -> isJust (findImplements (declBody d)))
+-- @
+constrain :: Text -> Text -> (Architecture -> [Text]) -> ArchBuilder ()
+constrain name desc chk = ArchBuilder $ \s ->
+  ((), s { abConstraints = ArchConstraint name desc chk : abConstraints s })

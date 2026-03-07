@@ -14,6 +14,9 @@ module Plat.Core.Types
   , LayerDef (..)
   , TypeAlias (..)
 
+    -- * Constraints
+  , ArchConstraint (..)
+
     -- * Declaration (AST node, untagged)
   , Declaration (..)
 
@@ -48,14 +51,31 @@ data DeclKind
   | Compose
   deriving stock (Show, Eq, Ord)
 
+-- | アーキテクチャ制約。'Plat.Core.Builder.constrain' で宣言する。
+--
+-- 検査関数は違反メッセージのリストを返す。空リストなら制約を満たす。
+-- 'Plat.Check.check' が自動的に評価し、違反を @Error@ として報告する。
+data ArchConstraint = ArchConstraint
+  { acName  :: Text                    -- ^ 制約名（一意であること）
+  , acDesc  :: Text                    -- ^ 人間向けの説明
+  , acCheck :: Architecture -> [Text]  -- ^ 検査関数（違反メッセージを返す）
+  }
+
+instance Show ArchConstraint where
+  show ac = "ArchConstraint " ++ show (acName ac)
+
+instance Eq ArchConstraint where
+  a == b = acName a == acName b
+
 -- | アーキテクチャ全体。'Plat.Core.Builder.arch' で構築される。
 data Architecture = Architecture
-  { archName        :: Text           -- ^ アーキテクチャ名（例: @"order-service"@）
-  , archLayers      :: [LayerDef]     -- ^ レイヤー定義（依存方向順）
-  , archTypes       :: [TypeAlias]    -- ^ 型エイリアス
-  , archCustomTypes :: [Text]         -- ^ 'registerType' で登録されたカスタム型名
-  , archDecls       :: [Declaration]  -- ^ 全宣言
-  , archMeta        :: [(Text, Text)] -- ^ アーキテクチャレベルのメタデータ
+  { archName        :: Text              -- ^ アーキテクチャ名（例: @"order-service"@）
+  , archLayers      :: [LayerDef]        -- ^ レイヤー定義（依存方向順）
+  , archTypes       :: [TypeAlias]       -- ^ 型エイリアス
+  , archCustomTypes :: [Text]            -- ^ 'registerType' で登録されたカスタム型名
+  , archDecls       :: [Declaration]     -- ^ 全宣言
+  , archConstraints :: [ArchConstraint]  -- ^ アーキテクチャ制約
+  , archMeta        :: [(Text, Text)]    -- ^ アーキテクチャレベルのメタデータ
   } deriving stock (Show, Eq)
 
 -- | レイヤー定義。'Plat.Core.Builder.layer' と 'Plat.Core.Builder.depends' で構築される。

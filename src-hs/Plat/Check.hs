@@ -33,19 +33,26 @@ import Plat.Check.Rules
 check :: Architecture -> CheckResult
 check = checkWith coreRules
 
--- | 指定ルールで検証
+-- | 指定ルールで検証（アーキテクチャ制約も評価される）
 checkWith :: [SomeRule] -> Architecture -> CheckResult
-checkWith rules arch = mconcat
-  [ classify rule diag
-  | SomeRule rule <- rules
-  , diag <- checkArch rule arch
-          ++ concatMap (checkDecl rule arch) (archDecls arch)
-  ]
+checkWith rules arch = ruleResults <> constraintResults
   where
+    ruleResults = mconcat
+      [ classify rule diag
+      | SomeRule rule <- rules
+      , diag <- checkArch rule arch
+              ++ concatMap (checkDecl rule arch) (archDecls arch)
+      ]
     classify :: PlatRule a => a -> Diagnostic -> CheckResult
     classify _ d = case dSeverity d of
       Error   -> CheckResult [d] []
       Warning -> CheckResult [] [d]
+    constraintResults = CheckResult
+      [ Diagnostic Error ("C:" <> acName c) msg (acName c) Nothing
+      | c <- archConstraints arch
+      , msg <- acCheck c arch
+      ]
+      []
 
 -- | IO 検証（W003: ファイル存在確認を含む）
 checkIO :: Architecture -> IO CheckResult

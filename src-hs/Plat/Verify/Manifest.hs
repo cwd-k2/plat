@@ -14,6 +14,7 @@ module Plat.Verify.Manifest
   , ManifestBinding (..)
   , ManifestLayer (..)
   , ManifestTypeAlias (..)
+  , ManifestConstraint (..)
   , manifest
   , renderManifest
   , parseManifest
@@ -41,6 +42,7 @@ data Manifest = Manifest
   , mTypeAliases :: [ManifestTypeAlias]
   , mDecls       :: [ManifestDecl]
   , mBindings    :: [ManifestBinding]
+  , mConstraints :: [ManifestConstraint]
   , mMeta        :: [(Text, Text)]
   } deriving stock (Show, Eq)
 
@@ -86,6 +88,11 @@ data ManifestBinding = ManifestBinding
   , mbAdapter  :: Text
   } deriving stock (Show, Eq)
 
+data ManifestConstraint = ManifestConstraint
+  { mcName :: Text
+  , mcDesc :: Text
+  } deriving stock (Show, Eq)
+
 ----------------------------------------------------------------------
 -- ToJSON
 ----------------------------------------------------------------------
@@ -98,6 +105,7 @@ instance ToJSON Manifest where
     , "type_aliases"   .= mTypeAliases m
     , "declarations"   .= mDecls m
     , "bindings"       .= mBindings m
+    , "constraints"    .= mConstraints m
     , "meta"           .= metaObject (mMeta m)
     ]
 
@@ -149,6 +157,12 @@ instance ToJSON ManifestBinding where
     , "adapter"  .= mbAdapter b
     ]
 
+instance ToJSON ManifestConstraint where
+  toJSON c = object
+    [ "name"        .= mcName c
+    , "description" .= mcDesc c
+    ]
+
 metaObject :: [(Text, Text)] -> Aeson.Value
 metaObject = toJSON . Map.fromList
 
@@ -164,6 +178,7 @@ instance FromJSON Manifest where
     <*> o .:? "type_aliases" .!= []
     <*> o .:  "declarations"
     <*> o .:? "bindings" .!= []
+    <*> o .:? "constraints" .!= []
     <*> (Map.toList <$> o .:? "meta" .!= Map.empty)
 
 instance FromJSON ManifestLayer where
@@ -208,6 +223,11 @@ instance FromJSON ManifestBinding where
     <$> o .: "boundary"
     <*> o .: "adapter"
 
+instance FromJSON ManifestConstraint where
+  parseJSON = withObject "ManifestConstraint" $ \o -> ManifestConstraint
+    <$> o .: "name"
+    <*> o .: "description"
+
 ----------------------------------------------------------------------
 -- Build manifest
 ----------------------------------------------------------------------
@@ -220,8 +240,12 @@ manifest a = Manifest
   , mTypeAliases = map toManifestTypeAlias (archTypes a)
   , mDecls       = map toManifestDecl (archDecls a)
   , mBindings    = concatMap extractBindings (archDecls a)
+  , mConstraints = map toManifestConstraint (archConstraints a)
   , mMeta        = archMeta a
   }
+
+toManifestConstraint :: ArchConstraint -> ManifestConstraint
+toManifestConstraint c = ManifestConstraint (acName c) (acDesc c)
 
 toManifestLayer :: LayerDef -> ManifestLayer
 toManifestLayer ly = ManifestLayer (layerName ly) (layerDeps ly)

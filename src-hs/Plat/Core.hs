@@ -75,6 +75,14 @@ module Plat.Core
   , registerType
   , declare
   , declares
+  , constrain
+
+    -- * Constraint combinators
+  , ArchConstraint (..)
+  , require
+  , forbid
+  , forAll
+  , holds
 
     -- * Meta DSL
   , ExtId
@@ -120,5 +128,6 @@ module Plat.Core
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Constraint
 import Plat.Core.TypeExpr
 import Plat.Core.Meta
