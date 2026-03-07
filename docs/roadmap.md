@@ -57,12 +57,14 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 ### plat-verify (Rust)
 
 - tree-sitter ベースの fact extraction (Go, TypeScript, Rust)
-- 6カテゴリのチェック: E0xx, S0xx, R0xx, T0xx, L0xx, I0xx
+- 7カテゴリのチェック: E0xx, S0xx, R0xx, T0xx, L0xx, I0xx, N0xx
 - 3 出力フォーマット: text, JSON, LSP diagnostics
 - ファイルレベルのインクリメンタルキャッシュ
-- Import graph analysis (I001: レイヤー越えインポート検出)
+- Import graph analysis: I001 (レイヤー越えインポート), I002 (インポートサイクル)
+- Naming convention checks: N001 (型名), N002 (フィールド名), N003 (メソッド名)
 - `--watch` モード (notify ベース、debounce 付きファイル監視)
-- LSP 連携 (`--format lsp` で PublishDiagnosticsParams JSON 出力)
+- `--lsp` モード (lsp-server crate, didSave → publishDiagnostics)
+- LSP diagnostics 出力 (`--format lsp` でバッチ出力も可能)
 
 ### Rust ツール群
 
