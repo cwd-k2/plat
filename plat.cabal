@@ -44,6 +44,12 @@ library
 executable example-go-clean-arch
   main-is:          GoCleanArch.hs
   hs-source-dirs:   examples/go-clean-arch
+  other-modules:
+    Arch.Shared
+    Arch.Order
+    Arch.Customer
+    Arch.Catalog
+    Arch.Payment
   build-depends:
     , base    >= 4.18 && < 5
     , plat
@@ -56,6 +62,13 @@ executable example-go-clean-arch
 executable example-ts-hexagonal
   main-is:          TsHexagonal.hs
   hs-source-dirs:   examples/ts-hexagonal
+  other-modules:
+    Arch.Layers
+    Arch.Domain
+    Arch.Notification
+    Arch.Schedule
+    Arch.Preference
+    Arch.Delivery
   build-depends:
     , base    >= 4.18 && < 5
     , plat
@@ -67,6 +80,14 @@ executable example-ts-hexagonal
 
 executable example-rust-cqrs-es
   main-is:          RustCqrsEs.hs
+  other-modules:
+    Arch.Layers
+    Arch.Domain
+    Arch.Port
+    Arch.Command
+    Arch.Query
+    Arch.Flow
+    Arch.Infra
   hs-source-dirs:   examples/rust-cqrs-es
   build-depends:
     , base    >= 4.18 && < 5
@@ -80,6 +101,11 @@ executable example-rust-cqrs-es
 executable example-go-feature-sliced
   main-is:          GoFeatureSliced.hs
   hs-source-dirs:   examples/go-feature-sliced
+  other-modules:
+    Arch.Shared
+    Arch.Order
+    Arch.Catalog
+    Arch.Payment
   build-depends:
     , base    >= 4.18 && < 5
     , plat
