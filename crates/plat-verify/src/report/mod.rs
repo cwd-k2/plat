@@ -1,5 +1,6 @@
 pub mod text;
 pub mod json;
+pub mod lsp;
 
 use crate::check::{Finding, Summary};
 
@@ -7,6 +8,7 @@ use crate::check::{Finding, Summary};
 pub enum Format {
     Text,
     Json,
+    Lsp,
 }
 
 pub fn render(
@@ -19,5 +21,6 @@ pub fn render(
     match format {
         Format::Text => text::render(findings, summary, name, language),
         Format::Json => json::render(findings, summary, name, language),
+        Format::Lsp => lsp::render(findings),
     }
 }

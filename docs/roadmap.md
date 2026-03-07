@@ -18,13 +18,13 @@ plat の開発ロードマップ。完了済みのフェーズと今後の方向
 meta ベースの拡張メカニズム。core の DeclItem を変更せず、smart constructor + meta タグで語彙を追加。
 
 - DDD: value, aggregate, enum, invariant + DDD-V001, DDD-V002
-- CQRS: command, query
+- CQRS: command, query + CQRS-W001
 - CleanArch: entity, port, impl, wire + CA-V001, CA-W001
 - Http: controller, route + HTTP-W001
 - DBC: pre, post, assert_ + DBC-W001
 - Flow: step, policy, guard_
-- Events: event, emit, on_, apply + EVT-V001, EVT-W001
-- Modules: domain, expose, import_ + MOD-V001, MOD-V002
+- Events: event, emit, on_, apply + EVT-V001, EVT-W001, EVT-W002
+- Modules: domain, expose, import_ + MOD-V001, MOD-V002, MOD-W001
 
 ### Architecture Algebra (v0.6.0)
 
@@ -50,45 +50,31 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 
 ### Verification Infrastructure
 
-- **Manifest** (`Plat.Verify.Manifest`): Architecture → JSON manifest
-- **plat-verify** (Rust): manifest と実装の構造的適合性検証
+- **Manifest** (`Plat.Verify.Manifest`): Architecture → JSON manifest (仕様: [docs/spec/manifest.md](spec/manifest.md))
+- **Custom rule API**: `mkDeclRule`/`mkArchRule` でクロージャベースのカスタムルール作成
+- **Golden tests**: Haskell → manifest → Rust の cross-language テストパイプライン
 
 ### plat-verify (Rust)
 
 - tree-sitter ベースの fact extraction (Go, TypeScript, Rust)
-- 5カテゴリのチェック: E0xx, S0xx, R0xx, T0xx, L0xx
-- テキスト / JSON レポート出力
+- 6カテゴリのチェック: E0xx, S0xx, R0xx, T0xx, L0xx, I0xx
+- 3 出力フォーマット: text, JSON, LSP diagnostics
 - ファイルレベルのインクリメンタルキャッシュ
+- Import graph analysis (I001: レイヤー越えインポート検出)
+- `--watch` モード (notify ベース、debounce 付きファイル監視)
+- LSP 連携 (`--format lsp` で PublishDiagnosticsParams JSON 出力)
+
+### Rust ツール群
+
+- **plat-skeleton**: コードスカフォールド生成 (golden tests 付き)
+- **plat-contract**: boundary の ops からテストスケルトン生成 (golden tests 付き)
+- **plat-deprules**: レイヤー依存定義から linter 設定を導出 (golden tests 付き)
 
 ## Future Directions
 
 方針の詳細は [docs/tooling-direction.md](tooling-direction.md) を参照。
 
-### Haskell / Rust 責務分離
-
-- **Plat.Target.* の Rust 移行**: `skeleton`, `contract`, `verify` を Rust ツール群に段階的に移行
-- **Plat.Verify.DepRules の Rust 移行**: linter 設定生成を `plat-deprules` として独立
-
-### Rust ツール群の拡充
-
-- **plat-skeleton**: コードスカフォールド生成
-- **plat-contract**: boundary の ops からテストスケルトンを生成
-- **plat-deprules**: レイヤー依存定義から linter 設定を導出
-
-### plat-verify の深化
-
-- Import graph analysis
-- `--watch` モード
-- LSP 連携
-
 ### Architecture as Code の進化
 
 - REPL 統合
 - Multi-service (複数 Architecture 間の境界)
-
-### Extension の発展
-
-- CQRS: query が write 系 boundary を needs していないか
-- Events: emit されたイベントに対応する handler が存在するか
-- Modules: expose されていない宣言が外部から参照されていないか
-- カスタムルール API

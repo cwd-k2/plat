@@ -12,6 +12,8 @@ struct CacheEntry {
     mtime_secs: u64,
     size: u64,
     types: Vec<TypeDef>,
+    #[serde(default)]
+    imports: Vec<String>,
 }
 
 /// File-level extraction cache backed by a JSON file.
@@ -41,19 +43,19 @@ impl ExtractCache {
         Ok(())
     }
 
-    /// Look up cached types for a file. Returns `Some` if cache is fresh.
-    pub fn get(&self, path: &Path, meta: &std::fs::Metadata) -> Option<Vec<TypeDef>> {
+    /// Look up cached extraction result for a file. Returns `Some` if cache is fresh.
+    pub fn get(&self, path: &Path, meta: &std::fs::Metadata) -> Option<(Vec<TypeDef>, Vec<String>)> {
         let entry = self.entries.get(path)?;
         let (mtime, size) = file_stamp(meta);
         if entry.mtime_secs == mtime && entry.size == size {
-            Some(entry.types.clone())
+            Some((entry.types.clone(), entry.imports.clone()))
         } else {
             None
         }
     }
 
     /// Store extraction result for a file.
-    pub fn put(&mut self, path: PathBuf, meta: &std::fs::Metadata, types: Vec<TypeDef>) {
+    pub fn put(&mut self, path: PathBuf, meta: &std::fs::Metadata, types: Vec<TypeDef>, imports: Vec<String>) {
         let (mtime, size) = file_stamp(meta);
         self.entries.insert(
             path,
@@ -61,6 +63,7 @@ impl ExtractCache {
                 mtime_secs: mtime,
                 size,
                 types,
+                imports,
             },
         );
     }

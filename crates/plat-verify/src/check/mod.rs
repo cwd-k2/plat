@@ -1,6 +1,7 @@
 pub mod compose;
 pub mod drift;
 pub mod existence;
+pub mod import_graph;
 pub mod layer_deps;
 pub mod structure;
 pub mod relation;
@@ -81,6 +82,9 @@ pub fn run_checks(
     }
     if config.checks.drift {
         findings.extend(drift::check(manifest, facts, config));
+    }
+    if config.checks.imports {
+        findings.extend(import_graph::check(manifest, facts, config));
     }
 
     // Apply severity overrides

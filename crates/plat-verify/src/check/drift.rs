@@ -154,6 +154,7 @@ mod tests {
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
+            imports: vec![],
             types: vec![
                 make_type("Order", TypeDefKind::Struct, vec![]),
                 make_type("AuditLog", TypeDefKind::Struct, vec![]),
@@ -176,6 +177,7 @@ mod tests {
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
+            imports: vec![],
             types: vec![
                 make_type("Order", TypeDefKind::Struct, vec![]),
                 make_type("OrderRepo", TypeDefKind::Interface, vec![]),
@@ -199,6 +201,7 @@ mod tests {
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
+            imports: vec![],
             types: vec![make_type(
                 "Order",
                 TypeDefKind::Struct,
@@ -223,6 +226,7 @@ mod tests {
         let facts = vec![FileFacts {
             path: PathBuf::from("test.go"),
             layer: None,
+            imports: vec![],
             types: vec![make_type("Order", TypeDefKind::Struct, vec![("Id", "string")])],
         }];
         let config = test_config();

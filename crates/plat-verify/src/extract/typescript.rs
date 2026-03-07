@@ -28,6 +28,34 @@ pub fn parse_file(parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef
     types
 }
 
+/// Extract import paths from a TypeScript source file.
+///
+/// Handles `import ... from "path"` and `import "path"` forms.
+pub fn parse_imports(source: &str) -> Vec<String> {
+    let mut parser = match new_parser() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    let Some(tree) = parser.parse(source, None) else {
+        return Vec::new();
+    };
+    let mut imports = Vec::new();
+    let root = tree.root_node();
+    let bytes = source.as_bytes();
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() != "import_statement" {
+            continue;
+        }
+        if let Some(source_node) = child.child_by_field_name("source") {
+            let text = node_text(source_node, bytes);
+            let path = text.trim_matches(|c| c == '\'' || c == '"');
+            imports.push(path.to_string());
+        }
+    }
+    imports
+}
+
 fn extract_declarations(
     node: tree_sitter::Node,
     source: &[u8],
@@ -544,5 +572,22 @@ class App {
         assert_eq!(app.fields[0].0, "config");
         assert_eq!(app.methods.len(), 1);
         assert_eq!(app.methods[0].name, "start");
+    }
+
+    #[test]
+    fn test_parse_imports() {
+        let src = r#"
+import { Order } from '../domain/order';
+import { OrderRepository } from "../port/repository";
+import express from 'express';
+
+export class OrderController {}
+"#;
+        let imports = parse_imports(src);
+        assert_eq!(imports, vec![
+            "../domain/order",
+            "../port/repository",
+            "express",
+        ]);
     }
 }

@@ -30,6 +30,58 @@ pub fn parse_file(parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef
     types
 }
 
+/// Extract import paths from a Go source file.
+///
+/// Handles both single imports (`import "path"`) and grouped imports
+/// (`import ("path1"\n"path2")`).
+pub fn parse_imports(source: &str) -> Vec<String> {
+    let mut parser = match new_parser() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    let Some(tree) = parser.parse(source, None) else {
+        return Vec::new();
+    };
+    let mut imports = Vec::new();
+    let root = tree.root_node();
+    let bytes = source.as_bytes();
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() != "import_declaration" {
+            continue;
+        }
+        let mut inner_cursor = child.walk();
+        for spec in child.children(&mut inner_cursor) {
+            match spec.kind() {
+                "import_spec" => {
+                    if let Some(path) = extract_import_path(spec, bytes) {
+                        imports.push(path);
+                    }
+                }
+                "import_spec_list" => {
+                    let mut list_cursor = spec.walk();
+                    for item in spec.children(&mut list_cursor) {
+                        if item.kind() == "import_spec" {
+                            if let Some(path) = extract_import_path(item, bytes) {
+                                imports.push(path);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    imports
+}
+
+fn extract_import_path(node: tree_sitter::Node, source: &[u8]) -> Option<String> {
+    let path_node = node.child_by_field_name("path")?;
+    let text = node_text(path_node, source);
+    // Strip quotes
+    Some(text.trim_matches('"').to_string())
+}
+
 fn extract_type_declarations(
     node: tree_sitter::Node,
     source: &[u8],
@@ -445,5 +497,35 @@ type UserRepository interface {
         assert_eq!(repo.methods.len(), 2);
         assert_eq!(repo.methods[0].name, "Create");
         assert_eq!(repo.methods[1].name, "Delete");
+    }
+
+    #[test]
+    fn test_parse_imports_grouped() {
+        let src = r#"
+package main
+
+import (
+    "fmt"
+    "myapp/domain"
+    "myapp/infra/postgres"
+)
+
+type Foo struct {}
+"#;
+        let imports = parse_imports(src);
+        assert_eq!(imports, vec!["fmt", "myapp/domain", "myapp/infra/postgres"]);
+    }
+
+    #[test]
+    fn test_parse_imports_single() {
+        let src = r#"
+package main
+
+import "myapp/domain"
+
+type Foo struct {}
+"#;
+        let imports = parse_imports(src);
+        assert_eq!(imports, vec!["myapp/domain"]);
     }
 }

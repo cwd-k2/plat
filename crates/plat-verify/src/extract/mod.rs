@@ -45,6 +45,8 @@ pub struct FileFacts {
     pub path: PathBuf,
     pub layer: Option<String>,
     pub types: Vec<TypeDef>,
+    #[serde(default)]
+    pub imports: Vec<String>,
 }
 
 /// Extract facts from all source files under the given root.
@@ -90,29 +92,34 @@ pub fn extract_all(
         let meta = std::fs::metadata(path)?;
 
         // Try cache first
-        let types = if let Some(ref cache) = cache {
+        let (types, imports) = if let Some(ref cache) = cache {
             if let Some(cached) = cache.get(path, &meta) {
                 cached
             } else {
                 let source = std::fs::read_to_string(path)?;
-                parse_source(lang, &mut parser, &source, path)
+                let types = parse_source(lang, &mut parser, &source, path);
+                let imports = parse_imports(lang, &source);
+                (types, imports)
             }
         } else {
             let source = std::fs::read_to_string(path)?;
-            parse_source(lang, &mut parser, &source, path)
+            let types = parse_source(lang, &mut parser, &source, path);
+            let imports = parse_imports(lang, &source);
+            (types, imports)
         };
 
         // Update cache
         if let Some(ref mut cache) = cache {
-            cache.put(path.to_path_buf(), &meta, types.clone());
+            cache.put(path.to_path_buf(), &meta, types.clone(), imports.clone());
         }
 
-        if !types.is_empty() {
+        if !types.is_empty() || !imports.is_empty() {
             let layer = resolve_layer(path, root, layer_dirs, config.source.layer_match);
             facts.push(FileFacts {
                 path: path.to_path_buf(),
                 layer,
                 types,
+                imports,
             });
         }
     }
@@ -130,6 +137,14 @@ fn parse_source(
         Language::Go => go::parse_file(parser, source, path),
         Language::TypeScript => typescript::parse_file(parser, source, path),
         Language::Rust => rust::parse_file(parser, source, path),
+    }
+}
+
+fn parse_imports(lang: Language, source: &str) -> Vec<String> {
+    match lang {
+        Language::Go => go::parse_imports(source),
+        Language::TypeScript => typescript::parse_imports(source),
+        Language::Rust => rust::parse_imports(source),
     }
 }
 

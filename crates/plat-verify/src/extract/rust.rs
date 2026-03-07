@@ -30,6 +30,70 @@ pub fn parse_file(parser: &mut Parser, source: &str, file: &Path) -> Vec<TypeDef
     types
 }
 
+/// Extract import paths from a Rust source file.
+///
+/// Collects paths from `use` declarations (e.g., `use crate::domain::Order;`).
+pub fn parse_imports(source: &str) -> Vec<String> {
+    let mut parser = match new_parser() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    let Some(tree) = parser.parse(source, None) else {
+        return Vec::new();
+    };
+    let mut imports = Vec::new();
+    let root = tree.root_node();
+    let bytes = source.as_bytes();
+    extract_use_declarations(root, bytes, &mut imports);
+    imports
+}
+
+fn extract_use_declarations(node: tree_sitter::Node, source: &[u8], imports: &mut Vec<String>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "use_declaration" => {
+                // The argument field contains the use path tree
+                if let Some(arg) = child.child_by_field_name("argument") {
+                    let text = node_text(arg, source);
+                    // Normalize: strip braces, split grouped imports
+                    for path in normalize_use_path(text) {
+                        imports.push(path);
+                    }
+                }
+            }
+            "mod_item" => {
+                if !is_cfg_test_module(child, source) {
+                    if let Some(body) = find_child_by_kind(child, "declaration_list") {
+                        extract_use_declarations(body, source, imports);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Normalize a Rust use path into one or more simple paths.
+///
+/// `crate::domain::Order` → `["crate::domain::Order"]`
+/// `crate::domain::{Order, Money}` → `["crate::domain::Order", "crate::domain::Money"]`
+fn normalize_use_path(path: &str) -> Vec<String> {
+    let path = path.trim();
+    if let Some(brace_start) = path.find('{') {
+        let prefix = &path[..brace_start];
+        let brace_end = path.rfind('}').unwrap_or(path.len());
+        let inner = &path[brace_start + 1..brace_end];
+        inner
+            .split(',')
+            .map(|s| format!("{}{}", prefix, s.trim()))
+            .filter(|s| !s.ends_with("::"))
+            .collect()
+    } else {
+        vec![path.to_string()]
+    }
+}
+
 /// Extract `struct_item` declarations from top-level or within modules.
 fn extract_struct_items(
     node: tree_sitter::Node,
@@ -584,5 +648,36 @@ pub trait AccountService {
         assert!(account_svc.fields.is_empty());
         assert_eq!(account_svc.methods.len(), 1);
         assert_eq!(account_svc.methods[0].name, "open");
+    }
+
+    #[test]
+    fn test_parse_imports_simple() {
+        let src = r#"
+use crate::domain::Order;
+use crate::port::OrderRepository;
+
+pub struct PlaceOrder;
+"#;
+        let imports = parse_imports(src);
+        assert_eq!(imports, vec![
+            "crate::domain::Order",
+            "crate::port::OrderRepository",
+        ]);
+    }
+
+    #[test]
+    fn test_parse_imports_grouped() {
+        let src = r#"
+use crate::domain::{Order, Money};
+use std::collections::HashMap;
+
+pub struct Service;
+"#;
+        let imports = parse_imports(src);
+        assert_eq!(imports, vec![
+            "crate::domain::Order",
+            "crate::domain::Money",
+            "std::collections::HashMap",
+        ]);
     }
 }
