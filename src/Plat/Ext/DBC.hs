@@ -1,29 +1,35 @@
--- | Design by Contract 拡張: pre, post, assert_
+-- | Design by Contract extension: pre, post, assert_
 module Plat.Ext.DBC
   ( pre
   , post
   , assert_
   , dbcRules
+  -- * Meta vocabulary
+  , dbc
   ) where
 
 import Data.Text (Text)
-import qualified Data.Text as T
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Meta
 import Plat.Check.Class
 
--- | 事前条件（operation コンテキスト）
+-- | DBC extension identifier
+dbc :: ExtId
+dbc = extId "dbc"
+
+-- | Precondition (operation context)
 pre :: Text -> Text -> DeclWriter 'Operation ()
-pre name expr = meta ("plat-dbc:pre:" <> name) expr
+pre name expr = annotate dbc "pre" name expr
 
--- | 事後条件（operation コンテキスト）
+-- | Postcondition (operation context)
 post :: Text -> Text -> DeclWriter 'Operation ()
-post name expr = meta ("plat-dbc:post:" <> name) expr
+post name expr = annotate dbc "post" name expr
 
--- | アサーション（任意の DeclWriter コンテキスト）
+-- | Assertion (any DeclWriter context)
 assert_ :: Text -> Text -> DeclWriter k ()
-assert_ name expr = meta ("plat-dbc:assert:" <> name) expr
+assert_ name expr = annotate dbc "assert" name expr
 
 ----------------------------------------------------------------------
 -- DBC Rules
@@ -44,8 +50,8 @@ instance PlatRule ContractNeedsRule where
     | otherwise = []
 
 hasContract :: Declaration -> Bool
-hasContract d = any (\(k, _) -> T.isPrefixOf "plat-dbc:pre:" k
-                             || T.isPrefixOf "plat-dbc:post:" k) (declMeta d)
+hasContract d = not (null (annotations dbc "pre" d))
+             || not (null (annotations dbc "post" d))
 
 dbcRules :: [SomeRule]
 dbcRules = [SomeRule ContractNeedsRule]

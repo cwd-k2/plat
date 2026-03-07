@@ -60,6 +60,20 @@ module Plat.Core
   , declare
   , declares
 
+    -- * Meta DSL
+  , ExtId
+  , MetaTag
+  , extId
+  , kind
+  , tagAs
+  , isTagged
+  , attr
+  , lookupAttr
+  , annotate
+  , annotations
+  , refer
+  , references
+
     -- * Type expressions
   , string
   , int
@@ -90,3 +104,4 @@ module Plat.Core
 import Plat.Core.Types
 import Plat.Core.Builder
 import Plat.Core.TypeExpr
+import Plat.Core.Meta

@@ -1,16 +1,20 @@
--- | HTTP 拡張: controller, route
+-- | HTTP extension: controller, route
 module Plat.Ext.Http
   ( Method (..)
   , controller
   , route
+  -- * Meta vocabulary
+  , http
+  , httpController
   ) where
 
 import Data.Text (Text)
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Meta
 
--- | HTTP メソッド
+-- | HTTP method
 data Method = GET | POST | PUT | DELETE | PATCH
   deriving stock (Show, Eq, Ord)
 
@@ -21,17 +25,22 @@ renderMethod PUT    = "PUT"
 renderMethod DELETE = "DELETE"
 renderMethod PATCH  = "PATCH"
 
+-- | HTTP extension identifier
+http :: ExtId
+http = extId "http"
+
+httpController :: MetaTag
+httpController = kind http "controller"
+
 -- | Controller (adapter without implements)
 controller :: Text -> LayerDef -> DeclWriter 'Adapter () -> Decl 'Adapter
 controller name ly body = adapter name ly $ do
-  meta "plat-http:kind" "controller"
+  tagAs httpController
   body
 
 -- | Route (records method, path, and target operation as metadata)
 route :: Method -> Text -> Decl 'Operation -> DeclWriter 'Adapter ()
 route method routePath target = do
   let opName = declName (unDecl target)
-      key = "plat-http:route:" <> opName
-      val = renderMethod method <> " " <> routePath
-  meta key val
+  annotate http "route" opName (renderMethod method <> " " <> routePath)
   inject opName (TRef opName)

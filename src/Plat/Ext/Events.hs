@@ -1,38 +1,51 @@
--- | Events 拡張: event, emit, on_, apply_
+-- | Events extension: event, emit, on_, apply_
 module Plat.Ext.Events
   ( event
   , emit
   , on_
   , apply_
   , eventsRules
+  -- * Meta vocabulary
+  , events
+  , evtEvent
+  , evtHandler
   ) where
 
 import Data.Text (Text)
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Meta
 import Plat.Check.Class
 
--- | ドメインイベント（model として表現）
+-- | Events extension identifier
+events :: ExtId
+events = extId "events"
+
+evtEvent, evtHandler :: MetaTag
+evtEvent   = kind events "event"
+evtHandler = kind events "handler"
+
+-- | Domain event (model)
 event :: Text -> LayerDef -> DeclWriter 'Model () -> Decl 'Model
 event name ly body = model name ly $ do
-  meta "plat-events:kind" "event"
+  tagAs evtEvent
   body
 
--- | イベントの発行を宣言（operation コンテキスト）
+-- | Emit an event (operation context)
 emit :: Decl 'Model -> DeclWriter 'Operation ()
-emit (Decl d) = meta ("plat-events:emit:" <> declName d) (declName d)
+emit = refer events "emit"
 
--- | イベントハンドラ（operation として表現）
+-- | Event handler (operation)
 on_ :: Text -> Decl 'Model -> LayerDef -> DeclWriter 'Operation () -> Decl 'Operation
 on_ name evt ly body = operation name ly $ do
-  meta "plat-events:kind" "handler"
-  meta "plat-events:on" (declName (unDecl evt))
+  tagAs evtHandler
+  attr events "on" (declName (unDecl evt))
   body
 
--- | イベントの適用を宣言（model コンテキスト、aggregate で使用）
+-- | Apply an event (model context, for aggregates)
 apply_ :: Decl 'Model -> DeclWriter 'Model ()
-apply_ (Decl d) = meta ("plat-events:apply:" <> declName d) (declName d)
+apply_ = refer events "apply"
 
 eventsRules :: [SomeRule]
 eventsRules = []

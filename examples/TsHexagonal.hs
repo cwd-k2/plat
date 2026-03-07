@@ -1,6 +1,6 @@
 -- | Example: TypeScript Hexagonal Architecture — Notification Service
 --
--- Demonstrates plat-hs with raw Core API (no CleanArch preset).
+-- Demonstrates plat-hs with Core API + DDD enum.
 -- Target language: TypeScript
 module Main where
 
@@ -11,6 +11,7 @@ import Plat.Check
 import Plat.Generate.Plat     (render)
 import Plat.Generate.Mermaid  (renderMermaid)
 import Plat.Generate.Markdown (renderMarkdown)
+import Plat.Ext.DDD           (enum_)
 
 ----------------------------------------------------------------------
 -- Layers (hexagonal: domain at core, ports around, adapters outside)
@@ -33,20 +34,10 @@ adp = layer "adapter" `depends` [dom, port_, app]
 ----------------------------------------------------------------------
 
 channel :: Decl 'Model
-channel = model "Channel" dom $ do
-  meta "plat-ddd:kind" "enum"
-  meta "plat-ddd:variant:Email"  "Email"
-  meta "plat-ddd:variant:SMS"    "SMS"
-  meta "plat-ddd:variant:Push"   "Push"
-  meta "plat-ddd:variant:Slack"  "Slack"
+channel = enum_ "Channel" dom ["Email", "SMS", "Push", "Slack"]
 
 priority :: Decl 'Model
-priority = model "Priority" dom $ do
-  meta "plat-ddd:kind" "enum"
-  meta "plat-ddd:variant:Low"      "Low"
-  meta "plat-ddd:variant:Normal"   "Normal"
-  meta "plat-ddd:variant:High"     "High"
-  meta "plat-ddd:variant:Critical" "Critical"
+priority = enum_ "Priority" dom ["Low", "Normal", "High", "Critical"]
 
 recipient :: Decl 'Model
 recipient = model "Recipient" dom $ do

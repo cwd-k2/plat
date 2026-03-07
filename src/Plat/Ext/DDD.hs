@@ -1,4 +1,4 @@
--- | DDD 拡張: value, aggregate, enum_, invariant
+-- | DDD extension: value, aggregate, enum_, invariant
 module Plat.Ext.DDD
   ( value
   , aggregate
@@ -9,6 +9,11 @@ module Plat.Ext.DDD
   , isValue
   , isAggregate
   , isEnum
+  -- * Meta vocabulary
+  , ddd
+  , dddValue
+  , dddAggregate
+  , dddEnum
   ) where
 
 import Data.Text (Text)
@@ -17,40 +22,50 @@ import Control.Monad (forM_)
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Meta
 import Plat.Check.Class
+
+-- | DDD extension identifier
+ddd :: ExtId
+ddd = extId "ddd"
+
+dddValue, dddAggregate, dddEnum :: MetaTag
+dddValue     = kind ddd "value"
+dddAggregate = kind ddd "aggregate"
+dddEnum      = kind ddd "enum"
 
 -- | Value Object
 value :: Text -> LayerDef -> DeclWriter 'Model () -> Decl 'Model
 value name ly body = model name ly $ do
-  meta "plat-ddd:kind" "value"
+  tagAs dddValue
   body
 
 -- | Aggregate Root
 aggregate :: Text -> LayerDef -> DeclWriter 'Model () -> Decl 'Model
 aggregate name ly body = model name ly $ do
-  meta "plat-ddd:kind" "aggregate"
+  tagAs dddAggregate
   body
 
 -- | Enum (variants as metadata)
 enum_ :: Text -> LayerDef -> [Text] -> Decl 'Model
 enum_ name ly variants = model name ly $ do
-  meta "plat-ddd:kind" "enum"
-  forM_ variants $ \v -> meta ("plat-ddd:variant:" <> v) v
+  tagAs dddEnum
+  forM_ variants $ \v -> annotate ddd "variant" v v
 
 -- | Invariant (model context only)
 invariant :: Text -> Text -> DeclWriter 'Model ()
-invariant name expr = meta ("plat-ddd:invariant:" <> name) expr
+invariant name expr = annotate ddd "invariant" name expr
 
 -- Queries
 
 isValue :: Declaration -> Bool
-isValue d = declKind d == Model && lookupMeta "plat-ddd:kind" d == Just "value"
+isValue d = declKind d == Model && isTagged dddValue d
 
 isAggregate :: Declaration -> Bool
-isAggregate d = declKind d == Model && lookupMeta "plat-ddd:kind" d == Just "aggregate"
+isAggregate d = declKind d == Model && isTagged dddAggregate d
 
 isEnum :: Declaration -> Bool
-isEnum d = declKind d == Model && lookupMeta "plat-ddd:kind" d == Just "enum"
+isEnum d = declKind d == Model && isTagged dddEnum d
 
 ----------------------------------------------------------------------
 -- DDD Rules

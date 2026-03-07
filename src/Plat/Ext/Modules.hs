@@ -1,34 +1,44 @@
--- | Modules 拡張: domain, expose, import_
+-- | Modules extension: domain, expose, import_
 module Plat.Ext.Modules
   ( domain
   , expose
   , import_
   , modulesRules
+  -- * Meta vocabulary
+  , modules
+  , modulesDomain
   ) where
 
 import Data.Text (Text)
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Meta
 import Plat.Check.Class
 
--- | ドメインモジュール（compose として表現: 宣言のグルーピング）
+-- | Modules extension identifier
+modules :: ExtId
+modules = extId "modules"
+
+modulesDomain :: MetaTag
+modulesDomain = kind modules "domain"
+
+-- | Domain module (compose: grouping of declarations)
 domain :: Text -> DeclWriter 'Compose () -> Decl 'Compose
 domain name body = compose name $ do
-  meta "plat-modules:kind" "domain"
+  tagAs modulesDomain
   body
 
--- | モジュールから宣言を公開
+-- | Expose a declaration from a module
 expose :: Decl k -> DeclWriter 'Compose ()
 expose d = do
-  let name = declName (unDecl d)
-  meta ("plat-modules:expose:" <> name) name
+  refer modules "expose" d
   entry d
 
--- | 別モジュールの宣言を参照（メタデータとして記録）
+-- | Import a declaration from another module (recorded as metadata)
 import_ :: Decl 'Compose -> Decl k -> DeclWriter 'Compose ()
 import_ src target =
-  meta ("plat-modules:import:" <> declName (unDecl target)) (declName (unDecl src))
+  annotate modules "import" (declName (unDecl target)) (declName (unDecl src))
 
 modulesRules :: [SomeRule]
 modulesRules = []

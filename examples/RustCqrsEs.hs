@@ -183,12 +183,12 @@ transferMoney = step "TransferMoney" app $ do
 onDeposited :: Decl 'Operation
 onDeposited = on_ "OnMoneyDeposited" moneyDeposited app $ do
   output "err" error_
-  meta "plat-flow:kind" "projection"
+  tagAs flowProjection
 
 onWithdrawn :: Decl 'Operation
 onWithdrawn = on_ "OnMoneyWithdrawn" moneyWithdrawn app $ do
   output "err" error_
-  meta "plat-flow:kind" "projection"
+  tagAs flowProjection
 
 ----------------------------------------------------------------------
 -- Infrastructure Adapters

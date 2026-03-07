@@ -1,4 +1,4 @@
--- | CQRS 拡張: command, query
+-- | CQRS extension: command, query
 module Plat.Ext.CQRS
   ( command
   , query
@@ -6,41 +6,50 @@ module Plat.Ext.CQRS
   -- * Helpers
   , isCommand
   , isQuery
+  -- * Meta vocabulary
+  , cqrs
+  , cqrsCommand
+  , cqrsQuery
   ) where
 
 import Data.Text (Text)
 
 import Plat.Core.Types
 import Plat.Core.Builder
+import Plat.Core.Meta
 import Plat.Check.Class
+
+-- | CQRS extension identifier
+cqrs :: ExtId
+cqrs = extId "cqrs"
+
+cqrsCommand, cqrsQuery :: MetaTag
+cqrsCommand = kind cqrs "command"
+cqrsQuery   = kind cqrs "query"
 
 -- | Command (operation with write semantics)
 command :: Text -> LayerDef -> DeclWriter 'Operation () -> Decl 'Operation
 command name ly body = operation name ly $ do
-  meta "plat-cqrs:kind" "command"
+  tagAs cqrsCommand
   body
 
 -- | Query (operation with read semantics)
 query :: Text -> LayerDef -> DeclWriter 'Operation () -> Decl 'Operation
 query name ly body = operation name ly $ do
-  meta "plat-cqrs:kind" "query"
+  tagAs cqrsQuery
   body
 
 -- Queries
 
 isCommand :: Declaration -> Bool
-isCommand d = declKind d == Operation && lookupMeta "plat-cqrs:kind" d == Just "command"
+isCommand d = declKind d == Operation && isTagged cqrsCommand d
 
 isQuery :: Declaration -> Bool
-isQuery d = declKind d == Operation && lookupMeta "plat-cqrs:kind" d == Just "query"
+isQuery d = declKind d == Operation && isTagged cqrsQuery d
 
 ----------------------------------------------------------------------
 -- CQRS Rules
 ----------------------------------------------------------------------
-
--- | CQRS-W001: query should not have side-effecting needs
---   (future: detect event publishers, write repos, etc.)
---   For now, this is a placeholder.
 
 cqrsRules :: [SomeRule]
 cqrsRules = []
