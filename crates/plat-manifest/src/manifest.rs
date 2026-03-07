@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Manifest {
     #[serde(default = "default_schema_version")]
     pub schema_version: String,
+    #[serde(default)]
     pub name: String,
     pub layers: Vec<Layer>,
     #[serde(default)]
@@ -40,7 +41,7 @@ pub struct TypeAlias {
     pub typ: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Declaration {
     pub name: String,
     pub kind: DeclKind,
@@ -69,9 +70,10 @@ pub struct Declaration {
     pub meta: HashMap<String, String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum DeclKind {
+    #[default]
     Model,
     Boundary,
     Operation,
@@ -129,4 +131,73 @@ pub struct Relation {
     pub target: String,
     #[serde(default)]
     pub meta: HashMap<String, String>,
+}
+
+impl Manifest {
+    /// Split a multi-service manifest into per-service manifests.
+    ///
+    /// Declarations with `service: None` are included in all output manifests
+    /// (shared types). Each output manifest is named `"{original}-{service}"`.
+    /// Returns an empty vec if no declarations have a service tag.
+    pub fn split_by_service(&self) -> Vec<Manifest> {
+        let services: Vec<&str> = {
+            let mut set = HashSet::new();
+            for d in &self.declarations {
+                if let Some(ref svc) = d.service {
+                    set.insert(svc.as_str());
+                }
+            }
+            let mut v: Vec<&str> = set.into_iter().collect();
+            v.sort();
+            v
+        };
+
+        if services.is_empty() {
+            return Vec::new();
+        }
+
+        services
+            .into_iter()
+            .map(|svc| {
+                let decls: Vec<Declaration> = self
+                    .declarations
+                    .iter()
+                    .filter(|d| d.service.as_deref() == Some(svc) || d.service.is_none())
+                    .cloned()
+                    .collect();
+
+                let decl_names: HashSet<&str> =
+                    decls.iter().map(|d| d.name.as_str()).collect();
+
+                Manifest {
+                    schema_version: self.schema_version.clone(),
+                    name: format!("{}-{}", self.name, svc),
+                    layers: self.layers.clone(),
+                    type_aliases: self.type_aliases.clone(),
+                    custom_types: self.custom_types.clone(),
+                    bindings: self
+                        .bindings
+                        .iter()
+                        .filter(|b| {
+                            decl_names.contains(b.boundary.as_str())
+                                && decl_names.contains(b.adapter.as_str())
+                        })
+                        .cloned()
+                        .collect(),
+                    constraints: self.constraints.clone(),
+                    relations: self
+                        .relations
+                        .iter()
+                        .filter(|r| {
+                            decl_names.contains(r.source.as_str())
+                                || decl_names.contains(r.target.as_str())
+                        })
+                        .cloned()
+                        .collect(),
+                    meta: self.meta.clone(),
+                    declarations: decls,
+                }
+            })
+            .collect()
+    }
 }

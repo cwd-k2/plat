@@ -1,4 +1,4 @@
-use plat_manifest::{DeclKind, Manifest};
+use plat_manifest::{Binding, DeclKind, Declaration, Field, Layer, Manifest};
 
 const GOLDEN: &str = include_str!("../../../test/golden/manifest.json");
 
@@ -86,4 +86,123 @@ fn golden_roundtrip() {
     assert_eq!(m2.schema_version, m.schema_version);
     assert_eq!(m2.declarations.len(), m.declarations.len());
     assert_eq!(m2.custom_types, m.custom_types);
+}
+
+fn multi_service_manifest() -> Manifest {
+    let shared_model = Declaration {
+        name: "Money".into(),
+        kind: DeclKind::Model,
+        layer: Some("domain".into()),
+        service: None,
+        fields: vec![Field { name: "amount".into(), typ: "Int".into() }],
+        ..Default::default()
+    };
+    let order_model = Declaration {
+        name: "Order".into(),
+        kind: DeclKind::Model,
+        layer: Some("domain".into()),
+        service: Some("order".into()),
+        fields: vec![Field { name: "total".into(), typ: "Money".into() }],
+        ..Default::default()
+    };
+    let order_repo = Declaration {
+        name: "OrderRepo".into(),
+        kind: DeclKind::Boundary,
+        layer: Some("port".into()),
+        service: Some("order".into()),
+        ..Default::default()
+    };
+    let pg_order = Declaration {
+        name: "PgOrderRepo".into(),
+        kind: DeclKind::Adapter,
+        layer: Some("infra".into()),
+        service: Some("order".into()),
+        implements: Some("OrderRepo".into()),
+        ..Default::default()
+    };
+    let payment_model = Declaration {
+        name: "Payment".into(),
+        kind: DeclKind::Model,
+        layer: Some("domain".into()),
+        service: Some("payment".into()),
+        ..Default::default()
+    };
+
+    Manifest {
+        schema_version: "0.6".into(),
+        name: "platform".into(),
+        layers: vec![
+            Layer { name: "domain".into(), depends: vec![] },
+            Layer { name: "port".into(), depends: vec!["domain".into()] },
+            Layer { name: "infra".into(), depends: vec!["domain".into(), "port".into()] },
+        ],
+        declarations: vec![shared_model, order_model, order_repo, pg_order, payment_model],
+        bindings: vec![Binding {
+            boundary: "OrderRepo".into(),
+            adapter: "PgOrderRepo".into(),
+        }],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn split_by_service_count() {
+    let m = multi_service_manifest();
+    let parts = m.split_by_service();
+    assert_eq!(parts.len(), 2, "order + payment");
+}
+
+#[test]
+fn split_by_service_names() {
+    let m = multi_service_manifest();
+    let parts = m.split_by_service();
+    assert_eq!(parts[0].name, "platform-order");
+    assert_eq!(parts[1].name, "platform-payment");
+}
+
+#[test]
+fn split_shared_included_in_all() {
+    let m = multi_service_manifest();
+    let parts = m.split_by_service();
+    // Money (shared) should appear in both
+    for part in &parts {
+        assert!(
+            part.declarations.iter().any(|d| d.name == "Money"),
+            "shared Money missing from {}",
+            part.name
+        );
+    }
+}
+
+#[test]
+fn split_service_specific_decls() {
+    let m = multi_service_manifest();
+    let parts = m.split_by_service();
+    let order = &parts[0];
+    let payment = &parts[1];
+
+    assert!(order.declarations.iter().any(|d| d.name == "Order"));
+    assert!(order.declarations.iter().any(|d| d.name == "OrderRepo"));
+    assert!(!order.declarations.iter().any(|d| d.name == "Payment"));
+
+    assert!(payment.declarations.iter().any(|d| d.name == "Payment"));
+    assert!(!payment.declarations.iter().any(|d| d.name == "Order"));
+}
+
+#[test]
+fn split_bindings_filtered() {
+    let m = multi_service_manifest();
+    let parts = m.split_by_service();
+    let order = &parts[0];
+    let payment = &parts[1];
+
+    assert_eq!(order.bindings.len(), 1, "OrderRepo binding in order service");
+    assert_eq!(payment.bindings.len(), 0, "no bindings in payment service");
+}
+
+#[test]
+fn split_empty_when_no_service() {
+    let m: Manifest = serde_json::from_str(GOLDEN).unwrap();
+    let parts = m.split_by_service();
+    assert!(parts.is_empty(), "no service tags → empty split");
 }

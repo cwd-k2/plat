@@ -72,6 +72,7 @@ data ManifestDecl = ManifestDecl
   , mdImplements :: Maybe Text
   , mdInjects    :: [ManifestField]
   , mdEntries    :: [Text]
+  , mdService    :: Maybe Text
   , mdMeta       :: [(Text, Text)]
   } deriving stock (Show, Eq)
 
@@ -134,20 +135,22 @@ instance ToJSON ManifestTypeAlias where
     ]
 
 instance ToJSON ManifestDecl where
-  toJSON d = object
-    [ "name"       .= mdName d
-    , "kind"       .= mdKind d
-    , "layer"      .= mdLayer d
-    , "paths"      .= mdPaths d
-    , "fields"     .= mdFields d
-    , "ops"        .= mdOps d
-    , "inputs"     .= mdInputs d
-    , "outputs"    .= mdOutputs d
-    , "needs"      .= mdNeeds d
-    , "implements" .= mdImplements d
-    , "injects"    .= mdInjects d
-    , "entries"    .= mdEntries d
-    , "meta"       .= metaObject (mdMeta d)
+  toJSON d = object $ concat
+    [ [ "name"       .= mdName d
+      , "kind"       .= mdKind d
+      , "layer"      .= mdLayer d
+      , "paths"      .= mdPaths d
+      , "fields"     .= mdFields d
+      , "ops"        .= mdOps d
+      , "inputs"     .= mdInputs d
+      , "outputs"    .= mdOutputs d
+      , "needs"      .= mdNeeds d
+      , "implements" .= mdImplements d
+      , "injects"    .= mdInjects d
+      , "entries"    .= mdEntries d
+      , "meta"       .= metaObject (mdMeta d)
+      ]
+    , [ "service"    .= svc | Just svc <- [mdService d] ]
     ]
 
 instance ToJSON ManifestField where
@@ -227,6 +230,7 @@ instance FromJSON ManifestDecl where
     <*> o .:? "implements"
     <*> o .:? "injects" .!= []
     <*> o .:? "entries" .!= []
+    <*> o .:? "service"
     <*> (Map.toList <$> o .:? "meta" .!= Map.empty)
 
 instance FromJSON ManifestField where
@@ -304,8 +308,11 @@ toManifestDecl d = ManifestDecl
   , mdImplements = findImplements (declBody d)
   , mdInjects    = [ManifestField n (renderTypeExpr t) | Inject n t <- declBody d]
   , mdEntries    = [n | Entry n <- declBody d]
-  , mdMeta       = declMeta d
+  , mdService    = lookup originKey (declMeta d)
+  , mdMeta       = filter (\(k, _) -> k /= originKey) (declMeta d)
   }
+  where
+    originKey = "plat-multiservice:origin"
 
 extractBindings :: Declaration -> [ManifestBinding]
 extractBindings d = [ManifestBinding bnd adp | Bind bnd adp <- declBody d]
