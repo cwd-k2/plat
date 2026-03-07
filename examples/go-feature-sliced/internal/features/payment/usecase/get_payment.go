@@ -1,8 +1,8 @@
 package usecase
 
 import (
-	paymentdomain "github.com/example/ecommerce/internal/payment/domain"
-	paymentport "github.com/example/ecommerce/internal/payment/port"
+	paymentdomain "github.com/example/ecommerce/internal/features/payment/domain"
+	paymentport "github.com/example/ecommerce/internal/features/payment/port"
 )
 
 // GetPayment implements the GetPayment use case.

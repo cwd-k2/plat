@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	catalogdomain "github.com/example/ecommerce/internal/catalog/domain"
+	catalogdomain "github.com/example/ecommerce/internal/features/catalog/domain"
 )
 
 // InMemoryProductRepo implements catalog/port.ProductRepository and catalog/port.ProductSearch.

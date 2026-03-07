@@ -1,7 +1,7 @@
 package port
 
 import (
-	catalogdomain "github.com/example/ecommerce/internal/catalog/domain"
+	catalogdomain "github.com/example/ecommerce/internal/features/catalog/domain"
 )
 
 // ProductSearch defines search operations for Product.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	paymentdomain "github.com/example/ecommerce/internal/payment/domain"
+	paymentdomain "github.com/example/ecommerce/internal/features/payment/domain"
 )
 
 // InMemoryPaymentRepo implements payment/port.PaymentRepository.

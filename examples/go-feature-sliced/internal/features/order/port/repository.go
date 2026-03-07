@@ -1,7 +1,7 @@
 package port
 
 import (
-	orderdomain "github.com/example/ecommerce/internal/order/domain"
+	orderdomain "github.com/example/ecommerce/internal/features/order/domain"
 )
 
 // OrderRepository defines persistence operations for Order.

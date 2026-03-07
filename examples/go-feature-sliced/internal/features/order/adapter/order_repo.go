@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	orderdomain "github.com/example/ecommerce/internal/order/domain"
+	orderdomain "github.com/example/ecommerce/internal/features/order/domain"
 )
 
 // InMemoryOrderRepo implements order/port.OrderRepository.

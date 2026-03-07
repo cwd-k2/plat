@@ -1,7 +1,7 @@
 package port
 
 import (
-	paymentdomain "github.com/example/ecommerce/internal/payment/domain"
+	paymentdomain "github.com/example/ecommerce/internal/features/payment/domain"
 )
 
 // PaymentRepository defines persistence operations for Payment.

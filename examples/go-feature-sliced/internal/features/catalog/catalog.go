@@ -5,11 +5,11 @@
 package catalog
 
 import (
-	"github.com/example/ecommerce/internal/catalog/adapter"
-	"github.com/example/ecommerce/internal/catalog/usecase"
-	"github.com/example/ecommerce/internal/catalog/port"
+	"github.com/example/ecommerce/internal/features/catalog/adapter"
+	"github.com/example/ecommerce/internal/features/catalog/usecase"
+	"github.com/example/ecommerce/internal/features/catalog/port"
 
-	catalogdomain "github.com/example/ecommerce/internal/catalog/domain"
+	catalogdomain "github.com/example/ecommerce/internal/features/catalog/domain"
 )
 
 // NewInMemoryProductRepo creates an in-memory ProductRepository and ProductSearch for testing.

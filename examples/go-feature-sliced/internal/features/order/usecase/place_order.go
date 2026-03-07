@@ -3,9 +3,9 @@ package usecase
 import (
 	"fmt"
 
-	orderdomain "github.com/example/ecommerce/internal/order/domain"
-	orderport "github.com/example/ecommerce/internal/order/port"
-	paymentport "github.com/example/ecommerce/internal/payment/port"
+	orderdomain "github.com/example/ecommerce/internal/features/order/domain"
+	orderport "github.com/example/ecommerce/internal/features/order/port"
+	paymentport "github.com/example/ecommerce/internal/features/payment/port"
 )
 
 // PlaceOrder implements the PlaceOrder use case.

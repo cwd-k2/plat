@@ -17,13 +17,13 @@ import (
 
 	shareddomain "github.com/example/ecommerce/internal/shared/domain"
 
-	"github.com/example/ecommerce/internal/catalog"
-	catalogdomain "github.com/example/ecommerce/internal/catalog/domain"
+	"github.com/example/ecommerce/internal/features/catalog"
+	catalogdomain "github.com/example/ecommerce/internal/features/catalog/domain"
 
-	"github.com/example/ecommerce/internal/order"
-	orderdomain "github.com/example/ecommerce/internal/order/domain"
+	"github.com/example/ecommerce/internal/features/order"
+	orderdomain "github.com/example/ecommerce/internal/features/order/domain"
 
-	"github.com/example/ecommerce/internal/payment"
+	"github.com/example/ecommerce/internal/features/payment"
 )
 
 func main() {

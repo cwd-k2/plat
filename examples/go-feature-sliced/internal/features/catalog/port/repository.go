@@ -1,7 +1,7 @@
 package port
 
 import (
-	catalogdomain "github.com/example/ecommerce/internal/catalog/domain"
+	catalogdomain "github.com/example/ecommerce/internal/features/catalog/domain"
 )
 
 // ProductRepository defines persistence operations for Product.

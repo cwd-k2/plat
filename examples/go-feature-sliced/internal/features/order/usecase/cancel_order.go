@@ -3,7 +3,7 @@ package usecase
 import (
 	"fmt"
 
-	orderport "github.com/example/ecommerce/internal/order/port"
+	orderport "github.com/example/ecommerce/internal/features/order/port"
 )
 
 // CancelOrder implements the CancelOrder use case.

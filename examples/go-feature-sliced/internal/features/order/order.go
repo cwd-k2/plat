@@ -5,12 +5,12 @@
 package order
 
 import (
-	"github.com/example/ecommerce/internal/order/adapter"
-	"github.com/example/ecommerce/internal/order/usecase"
-	"github.com/example/ecommerce/internal/order/port"
-	paymentport "github.com/example/ecommerce/internal/payment/port"
+	"github.com/example/ecommerce/internal/features/order/adapter"
+	"github.com/example/ecommerce/internal/features/order/usecase"
+	"github.com/example/ecommerce/internal/features/order/port"
+	paymentport "github.com/example/ecommerce/internal/features/payment/port"
 
-	orderdomain "github.com/example/ecommerce/internal/order/domain"
+	orderdomain "github.com/example/ecommerce/internal/features/order/domain"
 )
 
 // PlaceOrderInput is the input for the PlaceOrder use case.

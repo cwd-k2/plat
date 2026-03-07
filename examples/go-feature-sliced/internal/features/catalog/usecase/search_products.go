@@ -1,8 +1,8 @@
 package usecase
 
 import (
-	catalogdomain "github.com/example/ecommerce/internal/catalog/domain"
-	catalogport "github.com/example/ecommerce/internal/catalog/port"
+	catalogdomain "github.com/example/ecommerce/internal/features/catalog/domain"
+	catalogport "github.com/example/ecommerce/internal/features/catalog/port"
 )
 
 // SearchProducts implements the SearchProducts use case.

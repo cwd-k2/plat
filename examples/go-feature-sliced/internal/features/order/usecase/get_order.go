@@ -1,8 +1,8 @@
 package usecase
 
 import (
-	orderdomain "github.com/example/ecommerce/internal/order/domain"
-	orderport "github.com/example/ecommerce/internal/order/port"
+	orderdomain "github.com/example/ecommerce/internal/features/order/domain"
+	orderport "github.com/example/ecommerce/internal/features/order/port"
 )
 
 // GetOrder implements the GetOrder use case.

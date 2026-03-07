@@ -5,8 +5,8 @@ import (
 
 	shareddomain "github.com/example/ecommerce/internal/shared/domain"
 
-	paymentdomain "github.com/example/ecommerce/internal/payment/domain"
-	paymentport "github.com/example/ecommerce/internal/payment/port"
+	paymentdomain "github.com/example/ecommerce/internal/features/payment/domain"
+	paymentport "github.com/example/ecommerce/internal/features/payment/port"
 )
 
 // ProcessPayment implements the ProcessPayment use case.

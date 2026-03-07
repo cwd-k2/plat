@@ -5,11 +5,11 @@
 package payment
 
 import (
-	"github.com/example/ecommerce/internal/payment/adapter"
-	"github.com/example/ecommerce/internal/payment/usecase"
-	"github.com/example/ecommerce/internal/payment/port"
+	"github.com/example/ecommerce/internal/features/payment/adapter"
+	"github.com/example/ecommerce/internal/features/payment/usecase"
+	"github.com/example/ecommerce/internal/features/payment/port"
 
-	paymentdomain "github.com/example/ecommerce/internal/payment/domain"
+	paymentdomain "github.com/example/ecommerce/internal/features/payment/domain"
 )
 
 // ProcessPaymentInput is the input for the ProcessPayment use case.
