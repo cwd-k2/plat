@@ -13,6 +13,10 @@ pub struct Manifest {
     #[serde(default)]
     pub bindings: Vec<Binding>,
     #[serde(default)]
+    pub constraints: Vec<Constraint>,
+    #[serde(default)]
+    pub relations: Vec<Relation>,
+    #[serde(default)]
     pub meta: HashMap<String, String>,
 }
 
@@ -105,4 +109,19 @@ pub struct Op {
 pub struct Binding {
     pub boundary: String,
     pub adapter: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Constraint {
+    pub name: String,
+    pub description: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Relation {
+    pub kind: String,
+    pub source: String,
+    pub target: String,
+    #[serde(default)]
+    pub meta: HashMap<String, String>,
 }

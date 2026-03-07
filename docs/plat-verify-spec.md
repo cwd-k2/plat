@@ -69,6 +69,12 @@ plat が Architecture から言語非依存の JSON manifest を生成し、plat
   ],
   "bindings": [
     { "boundary": "OrderRepository", "adapter": "PostgresOrderRepo" }
+  ],
+  "constraints": [                                       // architecture constraints (metadata only)
+    { "name": "adapter-has-impl", "description": "every adapter must implement a boundary" }
+  ],
+  "relations": [                                         // explicit inter-declaration relations
+    { "kind": "uses", "source": "GetOrder", "target": "PlaceOrder", "meta": {} }
   ]
 }
 ```

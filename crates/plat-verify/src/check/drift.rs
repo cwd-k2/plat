@@ -123,6 +123,8 @@ mod tests {
             type_aliases: vec![],
             declarations,
             bindings: vec![],
+            constraints: vec![],
+            relations: vec![],
             meta: Default::default(),
         }
     }
