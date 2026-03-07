@@ -128,6 +128,16 @@ test-suite plat-test
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
   hs-source-dirs:   test/hs
+  other-modules:
+    Test.Harness
+    Test.Fixtures
+    Test.Core
+    Test.Ext
+    Test.Constraint
+    Test.Relation
+    Test.Algebra
+    Test.Evidence
+    Test.Manifest
   build-depends:
     , base       >= 4.18 && < 5
     , plat
