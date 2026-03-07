@@ -7,6 +7,10 @@ module Plat.Core.Algebra
     merge
   , mergeAll
 
+    -- * Compatibility
+  , Conflict (..)
+  , isCompatible
+
     -- * Projection
   , project
   , projectLayer
@@ -18,8 +22,8 @@ module Plat.Core.Algebra
   , diff
   ) where
 
-import Data.List (foldl')
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Set as Set
 
 import Plat.Core.Types
@@ -72,6 +76,60 @@ ordNub = go Set.empty
     go seen (x:xs)
       | x `Set.member` seen = go seen xs
       | otherwise = x : go (Set.insert x seen) xs
+
+----------------------------------------------------------------------
+-- Compatibility
+----------------------------------------------------------------------
+
+-- | 同名宣言間の構造的不整合。
+data Conflict = Conflict
+  { conflictName :: Text         -- ^ 衝突している宣言名
+  , conflictDesc :: Text         -- ^ 不整合の説明
+  } deriving stock (Show, Eq)
+
+-- | 2 つの Architecture が merge 可能かを事前検査する。
+--
+-- 同名の宣言が存在する場合、その構造（種類・レイヤー・ボディ）が一致するか検査する。
+-- merge は左優先で上書きするため、不整合を暗黙的に隠蔽するリスクがある。
+-- この関数で事前に不整合を検出できる。
+--
+-- @
+-- case isCompatible archA archB of
+--   [] -> merge "system" archA archB  -- 安全に合成
+--   cs -> error (show cs)             -- 不整合あり
+-- @
+isCompatible :: Architecture -> Architecture -> [Conflict]
+isCompatible a b = declConflicts ++ layerConflicts
+  where
+    declConflicts =
+      [ conflict
+      | da <- archDecls a
+      , db <- archDecls b
+      , declName da == declName db
+      , conflict <- checkDeclCompat da db
+      ]
+    layerConflicts =
+      [ Conflict (layerName la) $
+          "layer dependency mismatch: " <> T.pack (show (layerDeps la))
+          <> " vs " <> T.pack (show (layerDeps lb))
+      | la <- archLayers a
+      , lb <- archLayers b
+      , layerName la == layerName lb
+      , layerDeps la /= layerDeps lb
+      ]
+
+checkDeclCompat :: Declaration -> Declaration -> [Conflict]
+checkDeclCompat da db = concat
+  [ [ Conflict name $ "kind mismatch: " <> T.pack (show (declKind da))
+        <> " vs " <> T.pack (show (declKind db))
+    | declKind da /= declKind db ]
+  , [ Conflict name $ "layer mismatch: " <> T.pack (show (declLayer da))
+        <> " vs " <> T.pack (show (declLayer db))
+    | declLayer da /= declLayer db ]
+  , [ Conflict name $ "body mismatch: declarations have different structure"
+    | declBody da /= declBody db ]
+  ]
+  where name = declName da
 
 ----------------------------------------------------------------------
 -- Projection

@@ -17,6 +17,11 @@ module Plat.Check
   , coreRules
   , hasViolations
   , hasWarnings
+
+    -- * Validated architecture
+  , Validated (..)
+  , validate
+  , unvalidate
   ) where
 
 import Data.Text (Text)

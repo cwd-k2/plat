@@ -16,6 +16,12 @@ module Plat.Core.Constraint
 
     -- * Architecture-level predicates
   , holds
+
+    -- * Constraint composition
+  , both
+  , allOf
+  , oneOf
+  , neg
   ) where
 
 import Data.Text (Text)
@@ -48,3 +54,51 @@ forbid k msg p = forAll k $ \d ->
 -- 述語が 'False' なら指定メッセージを違反として報告する。
 holds :: Text -> (Architecture -> Bool) -> Architecture -> [Text]
 holds msg p a = [msg | not (p a)]
+
+----------------------------------------------------------------------
+-- Constraint composition
+----------------------------------------------------------------------
+
+-- | 2つの検査関数の論理積。両方の違反を合わせて報告する。
+--
+-- @
+-- constrain "strict" "adapter rules" $
+--   require Adapter "..." pred1 \`both\` require Adapter "..." pred2
+-- @
+both :: (Architecture -> [Text]) -> (Architecture -> [Text]) -> Architecture -> [Text]
+both f g a = f a ++ g a
+
+-- | 複数の検査関数の論理積。全違反を合わせて報告する。
+--
+-- @
+-- constrain "all-rules" "combined" $
+--   allOf [require Adapter "..." p1, forbid Model "..." p2, holds "..." p3]
+-- @
+allOf :: [Architecture -> [Text]] -> Architecture -> [Text]
+allOf fs a = concatMap (\f -> f a) fs
+
+-- | 複数の検査関数の論理和。いずれか一つでも違反なしなら全体を通過とする。
+--
+-- 全て違反ありの場合のみ、最初の検査関数の違反を報告する。
+--
+-- @
+-- constrain "flexible" "at least one pattern" $
+--   oneOf [require Adapter "..." p1, require Adapter "..." p2]
+-- @
+oneOf :: [Architecture -> [Text]] -> Architecture -> [Text]
+oneOf [] _ = []
+oneOf fs a = case [f a | f <- fs] of
+  results | any null results -> []
+  (r:_)                      -> r
+  _                          -> []
+
+-- | 検査関数の否定。違反なしを違反とし、違反ありを通過とする。
+--
+-- @
+-- constrain "no-models-in-infra" "..." $
+--   neg (require Model "must exist in infra" (\\d -> declLayer d == Just "infra"))
+-- @
+neg :: Text -> (Architecture -> [Text]) -> Architecture -> [Text]
+neg msg f a = case f a of
+  [] -> [msg]
+  _  -> []

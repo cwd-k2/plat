@@ -242,6 +242,9 @@ main = do
     , section "Manifest"          testManifest
     , section "Evidence"          testEvidence
     , section "Algebraic props"   testAlgebraicProperties
+    , section "Constraint comp"   testConstraintComposition
+    , section "Compatibility"     testCompatibility
+    , section "Validated"         testValidated
     ]
   let total   = sum (map fst results)
       failed  = sum (map snd results)
@@ -1074,4 +1077,154 @@ testAlgebraicProperties = do
         null (diffDecls d_aa))
     , ("diff identity: no layer changes",
         fst (diffLayers d_aa) == [] && snd (diffLayers d_aa) == [])
+    ]
+
+----------------------------------------------------------------------
+-- Constraint composition tests
+----------------------------------------------------------------------
+
+testConstraintComposition :: TestResult
+testConstraintComposition = do
+  let archWithConstraints = arch "constrained" $ do
+        useLayers [core, application, interface, infra]
+        useTypes  [money]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+        declare placeOrder
+        declare postgresOrderRepo
+
+      -- Simple predicates for testing
+      hasModels  = require Model "no models" (const True)
+      neverPass  = holds "always fails" (const False)
+      alwaysPass = holds "always passes" (const True)
+
+  runTests
+    [ ("both: combines violations",
+        length (both neverPass neverPass archWithConstraints) == 2)
+    , ("both: one passes one fails",
+        length (both alwaysPass neverPass archWithConstraints) == 1)
+    , ("both: both pass",
+        null (both alwaysPass hasModels archWithConstraints))
+    , ("allOf: empty list passes",
+        null (allOf [] archWithConstraints))
+    , ("allOf: all pass",
+        null (allOf [alwaysPass, hasModels] archWithConstraints))
+    , ("allOf: one fails",
+        length (allOf [alwaysPass, neverPass] archWithConstraints) == 1)
+    , ("allOf: all fail",
+        length (allOf [neverPass, neverPass] archWithConstraints) == 2)
+    , ("oneOf: empty list passes",
+        null (oneOf [] archWithConstraints))
+    , ("oneOf: one passes",
+        null (oneOf [neverPass, alwaysPass] archWithConstraints))
+    , ("oneOf: all pass",
+        null (oneOf [alwaysPass, hasModels] archWithConstraints))
+    , ("oneOf: all fail → reports first",
+        oneOf [neverPass, neverPass] archWithConstraints
+          == neverPass archWithConstraints)
+    , ("neg: inverts pass to fail",
+        length (neg "should fail" alwaysPass archWithConstraints) == 1)
+    , ("neg: inverts fail to pass",
+        null (neg "inverted" neverPass archWithConstraints))
+    , ("composition: both + neg",
+        null (both hasModels (neg "no models" neverPass) archWithConstraints))
+    ]
+
+----------------------------------------------------------------------
+-- Compatibility tests
+----------------------------------------------------------------------
+
+testCompatibility :: TestResult
+testCompatibility = do
+  -- Two compatible architectures (no overlapping decls)
+  let archA = arch "a" $ do
+        useLayers [core, interface]
+        declare order
+        declare orderRepo
+
+      archB = arch "b" $ do
+        useLayers [core, interface, infra]
+        declare paymentGateway
+        declare stripePayment
+
+  -- Architecture with same decl, same structure → compatible
+  let archC = arch "c" $ do
+        useLayers [core]
+        declare order  -- same as archA's order
+
+  -- Architecture with same name but different kind
+  let conflictModel = model "OrderRepository" core $
+        field "x" string
+      archConflictKind = arch "d" $ do
+        useLayers [core]
+        declare conflictModel
+
+  -- Architecture with same name but different layer
+  let orderInfra = model "Order" infra $ do
+        field "id" uuid
+      archConflictLayer = arch "e" $ do
+        useLayers [core, infra]
+        declare orderInfra
+
+  -- Architecture with same layer name but different deps
+  let coreWithDeps = layer "core" `depends` [interface]
+      archConflictLayerDeps = arch "f" $ do
+        useLayers [coreWithDeps]  -- core depends on interface, unlike archA's core
+
+  runTests
+    [ ("no overlap → compatible",
+        null (isCompatible archA archB))
+    , ("same decl same structure → compatible",
+        null (isCompatible archA archC))
+    , ("kind mismatch → conflict",
+        any (\c -> T.isInfixOf "kind mismatch" (conflictDesc c))
+            (isCompatible archA archConflictKind))
+    , ("layer mismatch → conflict",
+        any (\c -> T.isInfixOf "layer mismatch" (conflictDesc c))
+            (isCompatible archA archConflictLayer))
+    , ("layer deps mismatch → conflict",
+        any (\c -> T.isInfixOf "layer dependency mismatch" (conflictDesc c))
+            (isCompatible archA archConflictLayerDeps))
+    , ("conflict count for kind mismatch",
+        length (isCompatible archA archConflictKind) >= 1)
+    ]
+
+----------------------------------------------------------------------
+-- Validated architecture tests
+----------------------------------------------------------------------
+
+testValidated :: TestResult
+testValidated = do
+  let r = check coreArch
+  runTests
+    [ ("validate clean arch → Right",
+        case validate r coreArch of
+          Right _ -> True
+          Left  _ -> False)
+    , ("validate preserves architecture",
+        case validate r coreArch of
+          Right v -> unvalidate v == coreArch
+          Left  _ -> False)
+    , ("validate preserves evidence",
+        case validate r coreArch of
+          Right v -> validEvidence v == evidence r
+          Left  _ -> False)
+    , ("validate with violations → Left",
+        let badArch = arch "bad" $ do
+              useLayers [core]
+              declare order
+              declare order  -- V009: duplicate declaration
+            badR = check badArch
+        in case validate badR badArch of
+             Left _  -> True
+             Right _ -> False)
+    , ("validate warns-only arch → Right",
+        let warnArch = arch "warn" $ do
+              useLayers [core]
+              declare order
+            warnR = check warnArch
+        in case validate warnR warnArch of
+             Right _ -> True
+             Left  _ -> False)
     ]

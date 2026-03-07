@@ -14,6 +14,11 @@ module Plat.Check.Class
   , CheckEvidence (..)
   , hasViolations
   , hasWarnings
+
+    -- * Validated architecture
+  , Validated (..)
+  , validate
+  , unvalidate
   ) where
 
 import Data.Text (Text)
@@ -86,4 +91,36 @@ class PlatRule a where
 -- | 'PlatRule' の存在型ラッパー。異なるルールをリストに格納可能にする。
 data SomeRule where
   SomeRule :: PlatRule a => a -> SomeRule
+
+----------------------------------------------------------------------
+-- Validated architecture
+----------------------------------------------------------------------
+
+-- | 検証済みアーキテクチャ。'validate' でのみ構築される。
+--
+-- 'merge' / 'project' 等の代数的操作は 'Validated' を剥がすため、
+-- 操作後は再検証が必要になる。これにより「検証済み」の不変条件が型で保証される。
+--
+-- @
+-- case validate (check myArch) of
+--   Left result -> T.putStrLn (prettyCheck result)  -- 違反あり
+--   Right valid -> deploy (unvalidate valid)         -- 安全に使用
+-- @
+data Validated = Validated
+  { validArch     :: Architecture    -- ^ 検証済みアーキテクチャ
+  , validEvidence :: CheckEvidence   -- ^ 検証通過の証拠
+  } deriving stock (Show, Eq)
+
+-- | 検証結果から 'Validated' を構築する。違反がある場合は 'Left' を返す。
+validate :: CheckResult -> Architecture -> Either CheckResult Validated
+validate r a
+  | hasViolations r = Left r
+  | otherwise       = Right (Validated a (evidence r))
+
+-- | 'Validated' から生の 'Architecture' を取り出す。
+--
+-- 代数的操作 ('merge', 'project' 等) に渡す際に使う。
+-- 操作後は検証済み保証が失われる。
+unvalidate :: Validated -> Architecture
+unvalidate = validArch
 

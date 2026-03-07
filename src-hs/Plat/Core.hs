@@ -84,6 +84,12 @@ module Plat.Core
   , forAll
   , holds
 
+    -- * Constraint composition
+  , both
+  , allOf
+  , oneOf
+  , neg
+
     -- * Relations
   , Relation (..)
   , relate
@@ -100,6 +106,8 @@ module Plat.Core
     -- * Architecture algebra
   , merge
   , mergeAll
+  , Conflict (..)
+  , isCompatible
   , project
   , projectLayer
   , projectKind
