@@ -17,41 +17,38 @@ import (
 
 	shareddomain "github.com/example/ecommerce/shared/domain"
 
-	catalogadapter "github.com/example/ecommerce/catalog/adapter"
+	"github.com/example/ecommerce/catalog"
 	catalogdomain "github.com/example/ecommerce/catalog/domain"
-	cataloguc "github.com/example/ecommerce/catalog/usecase"
 
-	orderadapter "github.com/example/ecommerce/order/adapter"
+	"github.com/example/ecommerce/order"
 	orderdomain "github.com/example/ecommerce/order/domain"
-	orderuc "github.com/example/ecommerce/order/usecase"
 
-	paymentadapter "github.com/example/ecommerce/payment/adapter"
-	paymentuc "github.com/example/ecommerce/payment/usecase"
+	"github.com/example/ecommerce/payment"
 )
 
 func main() {
-	// --- Adapters (framework layer) ---
-	orderRepo := orderadapter.NewInMemoryOrderRepo()
-	productRepo := catalogadapter.NewInMemoryProductRepo()
-	paymentGateway := paymentadapter.NewStubPaymentGateway()
-	paymentRepo := paymentadapter.NewInMemoryPaymentRepo()
+	// --- Adapters (framework layer) via feature facades ---
+	orderRepo := order.NewInMemoryRepo()
+	productRepo := catalog.NewInMemoryProductRepo()
+	paymentGateway := payment.NewStubGateway()
+	paymentRepo := payment.NewInMemoryRepo()
 
-	// --- Use cases (application layer) ---
+	// --- Use cases (application layer) via feature facades ---
 
 	// Order use cases
-	placeOrder := orderuc.NewPlaceOrder(orderRepo, paymentGateway)
-	cancelOrder := orderuc.NewCancelOrder(orderRepo)
-	getOrder := orderuc.NewGetOrder(orderRepo)
-	listOrders := orderuc.NewListOrders(orderRepo)
+	placeOrder := order.NewPlaceOrder(orderRepo, paymentGateway)
+	cancelOrder := order.NewCancelOrder(orderRepo)
+	getOrder := order.NewGetOrder(orderRepo)
+	listOrders := order.NewListOrders(orderRepo)
 
 	// Catalog use cases
-	createProduct := cataloguc.NewCreateProduct(productRepo)
-	getProduct := cataloguc.NewGetProduct(productRepo)
-	searchProducts := cataloguc.NewSearchProducts(productRepo)
+	createProduct := catalog.NewCreateProduct(productRepo)
+	getProduct := catalog.NewGetProduct(productRepo)
+	searchProducts := catalog.NewSearchProducts(productRepo)
 
 	// Payment use cases
-	processPayment := paymentuc.NewProcessPayment(paymentGateway, paymentRepo)
-	getPayment := paymentuc.NewGetPayment(paymentRepo)
+	processPayment := payment.NewProcessPayment(paymentGateway, paymentRepo)
+	getPayment := payment.NewGetPayment(paymentRepo)
 
 	// --- Concept verification: in-process use case execution ---
 	fmt.Println("\n--- Concept Verification: Feature-Sliced E-Commerce ---")
@@ -107,7 +104,7 @@ func main() {
 	// -- Order: place an order using catalog products --
 	fmt.Println("\n[Order Feature]")
 
-	order := &orderdomain.Order{
+	o := &orderdomain.Order{
 		ID:         "ord-001",
 		CustomerID: "cust-001",
 		Items: []orderdomain.OrderItem{
@@ -118,8 +115,8 @@ func main() {
 		Status:   orderdomain.StatusPending,
 	}
 
-	orderID, err := placeOrder.Execute(orderuc.PlaceOrderInput{
-		Order:        order,
+	orderID, err := placeOrder.Execute(order.PlaceOrderInput{
+		Order:        o,
 		PaymentToken: "tok_test_123",
 	})
 	if err != nil {
@@ -142,7 +139,7 @@ func main() {
 	// -- Payment: process payment for the order --
 	fmt.Println("\n[Payment Feature]")
 
-	paymentID, err := processPayment.Execute(paymentuc.ProcessPaymentInput{
+	paymentID, err := processPayment.Execute(payment.ProcessPaymentInput{
 		OrderID:      "ord-001",
 		Amount:       shareddomain.Money{Amount: 100.00, Currency: "USD"},
 		PaymentToken: "tok_test_456",
