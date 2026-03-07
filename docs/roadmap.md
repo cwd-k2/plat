@@ -1,6 +1,6 @@
 # Roadmap
 
-plat-hs の開発ロードマップ。完了済みのフェーズと今後の方向性。
+plat の開発ロードマップ。完了済みのフェーズと今後の方向性。
 
 ## Completed
 
@@ -50,7 +50,7 @@ Architecture と実装の乖離を検出するための基盤。
 
 ### Examples
 
-3つのアーキテクチャパターンを plat-hs で記述し、各ターゲット言語で実装:
+3つのアーキテクチャパターンを plat で記述し、各ターゲット言語で実装:
 
 | Example | Pattern | Language | Extensions |
 |---------|---------|----------|------------|
@@ -62,8 +62,8 @@ Architecture と実装の乖離を検出するための基盤。
 
 ### Verification の深化
 
-- **Manifest comparator**: JSON マニフェストと実装ソースを照合するスタンドアロンツール。CI パイプラインで `plat-hs manifest | plat-verify src/` のように使用
-- **Import graph analysis**: Go の import、TS の import/require、Rust の use を解析し、レイヤー依存違反を検出。DepRules の linter 設定生成とは別に、plat-hs 自身がチェックする方向
+- **Manifest comparator**: JSON マニフェストと実装ソースを照合するスタンドアロンツール。CI パイプラインで `plat manifest | plat-verify src/` のように使用
+- **Import graph analysis**: Go の import、TS の import/require、Rust の use を解析し、レイヤー依存違反を検出。DepRules の linter 設定生成とは別に、plat 自身がチェックする方向
 - **Drift detection**: skeleton の再生成結果と既存コードの diff を取り、意図しない乖離を警告
 
 ### Code Generation の拡充

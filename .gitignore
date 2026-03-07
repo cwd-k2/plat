@@ -12,3 +12,6 @@ examples/ts-hexagonal/dist/
 
 # Examples: Rust
 examples/rust-cqrs-es/target/
+
+# plat-verify (Rust)
+verify/target/

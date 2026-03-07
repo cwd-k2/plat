@@ -1,6 +1,6 @@
 # Internal Architecture
 
-plat-hs の内部構造と設計判断の詳細。
+plat の内部構造と設計判断の詳細。
 
 ## Module Map
 
@@ -9,6 +9,7 @@ Plat.Core              -- 公開 API re-export (ユーザーはここだけ impo
 Plat.Core.Types        -- AST: DeclKind, Declaration, Decl k, DeclItem, TypeExpr
 Plat.Core.Builder      -- DeclWriter k, ArchBuilder (State モナド)
 Plat.Core.TypeExpr     -- 型コンストラクタ: string, ref, ext, (.:)
+Plat.Core.Meta         -- 拡張メタ DSL: ExtId, MetaTag, tagAs, annotate, refer, attr
 
 Plat.Check             -- check, checkWith, checkIO, prettyCheck
 Plat.Check.Class       -- PlatRule type class, SomeRule (GADT), Diagnostic
@@ -19,6 +20,13 @@ Plat.Generate.Mermaid  -- Mermaid flowchart 生成
 Plat.Generate.Markdown -- Markdown ドキュメント生成
 
 Plat.Ext.*             -- 拡張モジュール (DDD, CQRS, CleanArch, Http, DBC, Flow, Events, Modules)
+
+Plat.Target.Go         -- Go コード生成 (skeleton, contract, verify)
+Plat.Target.TypeScript -- TypeScript コード生成
+Plat.Target.Rust       -- Rust コード生成
+
+Plat.Verify.Manifest   -- Architecture → JSON manifest
+Plat.Verify.DepRules   -- レイヤー依存 → linter 設定生成
 ```
 
 ## AST Design

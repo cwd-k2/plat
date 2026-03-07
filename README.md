@@ -1,8 +1,8 @@
-# plat-hs
+# plat
 
-Haskell eDSL for [Plat](https://github.com/user/plat) architecture design.
+Architecture as Code — eDSL, generation, verification.
 
-ソフトウェアアーキテクチャを Haskell の値として記述し、コンパイル時の参照安全性・実行時バリデーション・複数フォーマットへの出力を得る。
+ソフトウェアアーキテクチャを Haskell の値として記述し、コンパイル時の参照安全性・実行時バリデーション・複数フォーマットへの出力を得る。実装との構造的適合を tree-sitter ベースのツール (Rust) で検証する。
 
 ## Idea
 
@@ -11,7 +11,7 @@ Haskell eDSL for [Plat](https://github.com/user/plat) architecture design.
 1. **構造的制約** — model に `needs` を書けてはならない、adapter に `field` があってはならない
 2. **均質なデータ操作** — すべての宣言をリストで走査し、検証や生成に渡したい
 
-plat-hs はこれを **phantom-tagged newtype** (`Decl k`) と **消去関数** (`decl`) の2層で解決する。構築時は型レベルの制約が効き、操作時は均質な `Declaration` として扱える。
+plat はこれを **phantom-tagged newtype** (`Decl k`) と **消去関数** (`decl`) の2層で解決する。構築時は型レベルの制約が効き、操作時は均質な `Declaration` として扱える。
 
 ## Mental Model
 
@@ -203,7 +203,7 @@ let files = Go.skeleton cfg architecture
 
 各言語の型マッピング:
 
-| plat-hs | Go | TypeScript | Rust |
+| plat | Go | TypeScript | Rust |
 |---------|-----|------------|------|
 | `string` | `string` | `string` | `String` |
 | `int` | `int` | `number` | `i64` |
@@ -260,5 +260,6 @@ Requires GHC >= 9.6 (recommended 9.10+). `OverloadedStrings` のみ必須。
 - [docs/validation-rules.md](docs/validation-rules.md) — 全ルールの詳細仕様
 - [docs/extensions.md](docs/extensions.md) — 拡張パターンと meta タグ一覧
 - [docs/roadmap.md](docs/roadmap.md) — 開発ロードマップと今後の方向性
-- [plat-hs-spec-v0.6.md](plat-hs-spec-v0.6.md) — 正式仕様 (current)
-- [plat-hs-spec-v0.5.md](plat-hs-spec-v0.5.md) — previous
+- [docs/plat-verify-spec.md](docs/plat-verify-spec.md) — plat-verify 仕様
+- [docs/spec-v0.6.md](docs/spec-v0.6.md) — 正式仕様 (current)
+- [docs/spec-v0.5.md](docs/spec-v0.5.md) — previous

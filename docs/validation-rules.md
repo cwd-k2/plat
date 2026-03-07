@@ -36,7 +36,7 @@ boundary に `Inject` や `Implements` が含まれている場合。
 
 adapter が `implements` した boundary の op をすべてカバーしているか。
 
-**注意**: plat-hs の adapter は boundary の op を再宣言しない (inject のみ持つ) ため、adapter に Op が一つもなければ「暗黙的全カバー」として扱う。Op を明示的に書いた場合のみ、boundary の op との差分を検査する。
+**注意**: plat の adapter は boundary の op を再宣言しない (inject のみ持つ) ため、adapter に Op が一つもなければ「暗黙的全カバー」として扱う。Op を明示的に書いた場合のみ、boundary の op との差分を検査する。
 
 #### V008: Bind Type Mismatch
 

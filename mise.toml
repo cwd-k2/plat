@@ -1,9 +1,9 @@
 [tasks.build]
-description = "Build the library"
+description = "Build the Haskell library"
 run = "cabal build"
 
 [tasks.test]
-description = "Run test suite"
+description = "Run Haskell test suite"
 run = "cabal test"
 
 [tasks.check]
@@ -16,12 +16,8 @@ description = "Clean build artifacts"
 run = "cabal clean"
 
 [tasks.repl]
-description = "Start GHCi with plat-hs loaded"
+description = "Start GHCi with plat loaded"
 run = "cabal repl"
-
-[tasks.render]
-description = "Run test suite and show .plat output"
-run = "cabal run plat-hs-test"
 
 [tasks.lint]
 description = "Build with -Werror"
@@ -37,4 +33,14 @@ echo '--- Rust CQRS + Event Sourcing ---' && cabal run example-rust-cqrs-es 2>/d
 
 [tasks.watch]
 description = "Rebuild on file changes"
-run = "find src test -name '*.hs' | entr -c cabal test"
+run = "find hs/src hs/test -name '*.hs' | entr -c cabal test"
+
+[tasks."verify:build"]
+description = "Build plat-verify (Rust)"
+run = "cargo build"
+dir = "verify"
+
+[tasks."verify:test"]
+description = "Test plat-verify (Rust)"
+run = "cargo test"
+dir = "verify"
