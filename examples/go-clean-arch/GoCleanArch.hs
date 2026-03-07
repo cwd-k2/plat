@@ -10,11 +10,13 @@ import Plat.Generate.Mermaid   (renderMermaid)
 import Plat.Generate.Markdown  (renderMarkdown)
 import Plat.Ext.CleanArch      (cleanArchLayers, wire)
 
-import qualified Data.Text
+import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import qualified Plat.Target.Go as Go
 import Plat.Verify.Manifest (manifest, renderManifest)
 import Plat.Verify.DepRules (depPolicy, renderDepMatrix)
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), takeDirectory)
 
 import qualified Arch.Shared
 import qualified Arch.Order
@@ -47,50 +49,43 @@ wiring = wire "OrderServiceWiring" $ do
 -- Main
 ----------------------------------------------------------------------
 
+out :: FilePath -> Text -> IO ()
+out fp content = do
+  createDirectoryIfMissing True (takeDirectory fp)
+  TIO.writeFile fp content
+  putStrLn $ "  wrote " ++ fp
+
 main :: IO ()
 main = do
+  let dir = "dist"
   putStrLn "=== Go Clean Architecture: Order Service ==="
-  putStrLn ""
 
   -- Validation
   let checkResult = check architecture
-  TIO.putStrLn $ prettyCheck checkResult
-  putStrLn ""
+  out (dir </> "check.txt") (prettyCheck checkResult)
 
   -- Markdown
-  putStrLn "--- Markdown ---"
-  TIO.putStrLn $ renderMarkdown architecture
-  putStrLn ""
+  out (dir </> "architecture.md") (renderMarkdown architecture)
 
   -- Mermaid
-  putStrLn "--- Mermaid ---"
-  TIO.putStrLn $ renderMermaid architecture
-  putStrLn ""
+  out (dir </> "architecture.mmd") (renderMermaid architecture)
+
+  -- Dependency matrix
+  out (dir </> "dep-matrix.txt") (renderDepMatrix (depPolicy architecture))
+
+  -- Manifest
+  out (dir </> "manifest.toml") (renderManifest (manifest architecture))
 
   -- Go skeleton
   let goCfg = (Go.defaultConfig "github.com/example/order-service")
-        { Go.goLayerPkg = mempty  -- use layer names as-is
+        { Go.goLayerPkg = mempty
         , Go.goTypeMap  = mempty
         }
-  putStrLn "--- Go Skeleton ---"
-  mapM_ (\(fp, content) -> do
-    putStrLn $ ">> " ++ fp
-    TIO.putStrLn content
-    ) (Go.skeleton goCfg architecture)
+  mapM_ (\(fp, content) -> out (dir </> "skeleton" </> fp) content)
+        (Go.skeleton goCfg architecture)
 
   -- Go verify
-  putStrLn "--- Go Verify ---"
-  mapM_ (\(fp, content) -> do
-    putStrLn $ ">> " ++ fp
-    TIO.putStrLn content
-    ) (Go.verify goCfg architecture)
+  mapM_ (\(fp, content) -> out (dir </> "verify" </> fp) content)
+        (Go.verify goCfg architecture)
 
-  -- Dependency matrix
-  putStrLn "--- Dependency Matrix ---"
-  TIO.putStrLn $ renderDepMatrix (depPolicy architecture)
-
-  -- Manifest (first 30 lines)
-  putStrLn "--- Manifest (excerpt) ---"
-  let mText = renderManifest (manifest architecture)
-  mapM_ TIO.putStrLn (take 30 (Data.Text.lines mText))
-  putStrLn "..."
+  putStrLn "done."

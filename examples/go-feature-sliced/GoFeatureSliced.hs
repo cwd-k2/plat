@@ -19,7 +19,10 @@ import Plat.Generate.Mermaid   (renderMermaid)
 import Plat.Generate.Markdown  (renderMarkdown)
 import Plat.Ext.CleanArch      (cleanArchLayers, wire)
 
+import Data.Text (Text)
 import qualified Data.Text.IO as TIO
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), takeDirectory)
 
 import Plat.Verify.Manifest (manifest, renderManifest)
 
@@ -55,21 +58,24 @@ wiring = wire "ECommerceWiring" $ do
   entry Arch.Payment.processPayment
   entry Arch.Payment.getPayment
 
+----------------------------------------------------------------------
+-- Main
+----------------------------------------------------------------------
+
+out :: FilePath -> Text -> IO ()
+out fp content = do
+  createDirectoryIfMissing True (takeDirectory fp)
+  TIO.writeFile fp content
+  putStrLn $ "  wrote " ++ fp
+
 main :: IO ()
 main = do
+  let dir = "dist"
   putStrLn "=== Go Feature-Sliced CA: E-Commerce Platform ==="
-  putStrLn ""
 
-  let checkResult = check architecture
-  TIO.putStrLn $ prettyCheck checkResult
-  putStrLn ""
+  out (dir </> "check.txt")         (prettyCheck (check architecture))
+  out (dir </> "architecture.md")   (renderMarkdown architecture)
+  out (dir </> "architecture.mmd")  (renderMermaid architecture)
+  out (dir </> "manifest.toml")     (renderManifest (manifest architecture))
 
-  putStrLn "--- Mermaid ---"
-  TIO.putStrLn $ renderMermaid architecture
-  putStrLn ""
-
-  putStrLn "--- Markdown ---"
-  TIO.putStrLn $ renderMarkdown architecture
-
-  -- Manifest (for plat-verify)
-  TIO.putStrLn $ renderManifest (manifest architecture)
+  putStrLn "done."

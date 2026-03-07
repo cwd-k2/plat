@@ -51,9 +51,11 @@ executable example-go-clean-arch
     Arch.Catalog
     Arch.Payment
   build-depends:
-    , base    >= 4.18 && < 5
+    , base       >= 4.18 && < 5
     , plat
-    , text    >= 2.0
+    , text       >= 2.0
+    , directory  >= 1.3
+    , filepath   >= 1.4
   default-language: GHC2024
   default-extensions:
     OverloadedStrings
@@ -70,9 +72,11 @@ executable example-ts-hexagonal
     Arch.Preference
     Arch.Delivery
   build-depends:
-    , base    >= 4.18 && < 5
+    , base       >= 4.18 && < 5
     , plat
-    , text    >= 2.0
+    , text       >= 2.0
+    , directory  >= 1.3
+    , filepath   >= 1.4
   default-language: GHC2024
   default-extensions:
     OverloadedStrings
@@ -90,9 +94,11 @@ executable example-rust-cqrs-es
     Arch.Infra
   hs-source-dirs:   examples/rust-cqrs-es
   build-depends:
-    , base    >= 4.18 && < 5
+    , base       >= 4.18 && < 5
     , plat
-    , text    >= 2.0
+    , text       >= 2.0
+    , directory  >= 1.3
+    , filepath   >= 1.4
   default-language: GHC2024
   default-extensions:
     OverloadedStrings
@@ -107,9 +113,11 @@ executable example-go-feature-sliced
     Arch.Catalog
     Arch.Payment
   build-depends:
-    , base    >= 4.18 && < 5
+    , base       >= 4.18 && < 5
     , plat
-    , text    >= 2.0
+    , text       >= 2.0
+    , directory  >= 1.3
+    , filepath   >= 1.4
   default-language: GHC2024
   default-extensions:
     OverloadedStrings

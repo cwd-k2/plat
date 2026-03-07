@@ -10,7 +10,10 @@ import Plat.Generate.Mermaid   (renderMermaid)
 import Plat.Generate.Markdown  (renderMarkdown)
 import Plat.Ext.DDD            (dddRules)
 
+import Data.Text (Text)
 import qualified Data.Text.IO as TIO
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), takeDirectory)
 
 import Arch.Layers
 import qualified Arch.Domain
@@ -71,21 +74,19 @@ architecture = arch "bank-account-service" $ do
 -- Main
 ----------------------------------------------------------------------
 
+out :: FilePath -> Text -> IO ()
+out fp content = do
+  createDirectoryIfMissing True (takeDirectory fp)
+  TIO.writeFile fp content
+  putStrLn $ "  wrote " ++ fp
+
 main :: IO ()
 main = do
+  let dir = "dist"
   putStrLn "=== Rust CQRS + Event Sourcing: Bank Account Service ==="
-  putStrLn ""
 
-  -- Validation (core + DDD rules)
-  let checkResult = checkWith (coreRules ++ dddRules) architecture
-  TIO.putStrLn $ prettyCheck checkResult
-  putStrLn ""
+  out (dir </> "check.txt")         (prettyCheck (checkWith (coreRules ++ dddRules) architecture))
+  out (dir </> "architecture.md")   (renderMarkdown architecture)
+  out (dir </> "architecture.mmd")  (renderMermaid architecture)
 
-  -- Markdown
-  putStrLn "--- Markdown ---"
-  TIO.putStrLn $ renderMarkdown architecture
-  putStrLn ""
-
-  -- Mermaid
-  putStrLn "--- Mermaid ---"
-  TIO.putStrLn $ renderMermaid architecture
+  putStrLn "done."

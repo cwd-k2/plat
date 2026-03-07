@@ -4,12 +4,15 @@
 -- Target language: TypeScript
 module Main where
 
+import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 
 import Plat.Core
 import Plat.Check
 import Plat.Generate.Mermaid  (renderMermaid)
 import Plat.Generate.Markdown (renderMarkdown)
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), takeDirectory)
 
 import Arch.Layers
 import qualified Arch.Domain
@@ -66,18 +69,19 @@ architecture = arch "notification-service" $ do
 -- Main
 ----------------------------------------------------------------------
 
+out :: FilePath -> Text -> IO ()
+out fp content = do
+  createDirectoryIfMissing True (takeDirectory fp)
+  TIO.writeFile fp content
+  putStrLn $ "  wrote " ++ fp
+
 main :: IO ()
 main = do
+  let dir = "dist"
   putStrLn "=== TypeScript Hexagonal: Notification Service ==="
-  putStrLn ""
 
-  let checkResult = check architecture
-  TIO.putStrLn $ prettyCheck checkResult
-  putStrLn ""
+  out (dir </> "check.txt")         (prettyCheck (check architecture))
+  out (dir </> "architecture.md")   (renderMarkdown architecture)
+  out (dir </> "architecture.mmd")  (renderMermaid architecture)
 
-  putStrLn "--- Mermaid ---"
-  TIO.putStrLn $ renderMermaid architecture
-  putStrLn ""
-
-  putStrLn "--- Markdown ---"
-  TIO.putStrLn $ renderMarkdown architecture
+  putStrLn "done."
