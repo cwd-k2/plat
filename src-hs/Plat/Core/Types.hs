@@ -79,7 +79,7 @@ data Relation = Relation
   , relSource :: Text            -- ^ 関係元の宣言名
   , relTarget :: Text            -- ^ 関係先の宣言名
   , relMeta   :: [(Text, Text)]  -- ^ 関係メタデータ
-  } deriving stock (Show, Eq)
+  } deriving stock (Show, Eq, Ord)
 
 -- | アーキテクチャ全体。'Plat.Core.Builder.arch' で構築される。
 data Architecture = Architecture

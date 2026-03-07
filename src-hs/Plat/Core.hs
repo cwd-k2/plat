@@ -97,6 +97,16 @@ module Plat.Core
   , isAcyclic
   , typeRefs
 
+    -- * Architecture algebra
+  , merge
+  , mergeAll
+  , project
+  , projectLayer
+  , projectKind
+  , ArchDiff (..)
+  , DeclChange (..)
+  , diff
+
     -- * Meta DSL
   , ExtId
   , MetaTag
@@ -143,5 +153,6 @@ import Plat.Core.Types
 import Plat.Core.Builder
 import Plat.Core.Constraint
 import Plat.Core.Relation
+import Plat.Core.Algebra
 import Plat.Core.TypeExpr
 import Plat.Core.Meta

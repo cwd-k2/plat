@@ -11,6 +11,7 @@ library
     Plat.Core.Types
     Plat.Core.TypeExpr
     Plat.Core.Builder
+    Plat.Core.Algebra
     Plat.Core.Constraint
     Plat.Core.Relation
     Plat.Core.Meta

@@ -238,6 +238,7 @@ main = do
     , section "V009/W003"         testNewRules
     , section "Constraints"       testConstraints
     , section "Relations"         testRelations
+    , section "Algebra"           testAlgebra
     , section "Manifest"          testManifest
     ]
   let total   = sum (map fst results)
@@ -800,6 +801,78 @@ testRelations = do
         fmap (length . mRelations) parsed == Just 2)
     , ("relations in json",
         "\"relations\"" `T.isInfixOf` json)
+    ]
+
+----------------------------------------------------------------------
+-- Algebra tests
+----------------------------------------------------------------------
+
+testAlgebra :: TestResult
+testAlgebra = do
+  -- Two separate architectures
+  let orderArch = arch "order" $ do
+        useLayers [core, interface]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+
+      paymentArch = arch "payment" $ do
+        useLayers [core, interface, infra]
+        declare paymentGateway
+        declare stripePayment
+
+      -- merge
+      merged = merge "platform" orderArch paymentArch
+      -- mergeAll
+      merged2 = mergeAll "platform" [orderArch, paymentArch]
+
+  -- project
+  let domainOnly = projectLayer "core" merged
+      boundariesOnly = projectKind Boundary merged
+
+  -- diff
+  let v1 = arch "svc" $ do
+        useLayers [core, interface]
+        declare order
+        declare orderRepo
+      v2 = arch "svc" $ do
+        useLayers [core, interface, infra]
+        declare order
+        declare paymentGateway
+        declare stripePayment
+      d = diff v1 v2
+
+  runTests
+    [ ("merge: combined name",
+        archName merged == "platform")
+    , ("merge: layers deduplicated",
+        length (archLayers merged) == 3)  -- core, interface, infra (deduped)
+    , ("merge: all decls present",
+        length (archDecls merged) == 4)
+    , ("merge: customTypes combined",
+        "UUID" `elem` archCustomTypes merged)
+    , ("mergeAll: same result as merge",
+        archDecls merged2 == archDecls merged)
+    , ("mergeAll: empty list gives empty arch",
+        null (archDecls (mergeAll "empty" [])))
+    , ("project: core has Order",
+        any (\d' -> declName d' == "Order") (archDecls domainOnly))
+    , ("project: core has no Boundary",
+        all (\d' -> declKind d' /= Boundary) (archDecls domainOnly))
+    , ("projectKind: Boundary only",
+        all (\d' -> declKind d' == Boundary) (archDecls boundariesOnly))
+    , ("projectKind: keeps OrderRepository",
+        any (\d' -> declName d' == "OrderRepository") (archDecls boundariesOnly))
+    , ("diff: added decls",
+        length [() | Added _ <- diffDecls d] == 2)  -- PaymentGateway, StripePayment
+    , ("diff: removed decls",
+        length [() | Removed _ <- diffDecls d] == 1)  -- OrderRepository
+    , ("diff: unchanged decl (Order)",
+        null [() | Modified _ _ <- diffDecls d])
+    , ("diff: added layer",
+        length (fst (diffLayers d)) == 1)  -- infra added
+    , ("diff: no removed layers",
+        null (snd (diffLayers d)))
     ]
 
 ----------------------------------------------------------------------
