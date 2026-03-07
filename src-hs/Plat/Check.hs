@@ -9,6 +9,7 @@ module Plat.Check
 
     -- * Re-exports
   , CheckResult (..)
+  , CheckEvidence (..)
   , Diagnostic (..)
   , Severity (..)
   , SomeRule (..)
@@ -35,7 +36,7 @@ check = checkWith coreRules
 
 -- | 指定ルールで検証（アーキテクチャ制約も評価される）
 checkWith :: [SomeRule] -> Architecture -> CheckResult
-checkWith rules arch = ruleResults <> constraintResults
+checkWith rules arch = ruleResults <> constraintResults <> evidenceResult
   where
     ruleResults = mconcat
       [ classify rule diag
@@ -45,14 +46,20 @@ checkWith rules arch = ruleResults <> constraintResults
       ]
     classify :: PlatRule a => a -> Diagnostic -> CheckResult
     classify _ d = case dSeverity d of
-      Error   -> CheckResult [d] []
-      Warning -> CheckResult [] [d]
+      Error   -> CheckResult [d] [] mempty
+      Warning -> CheckResult [] [d] mempty
     constraintResults = CheckResult
       [ Diagnostic Error ("C:" <> acName c) msg (acName c) Nothing
       | c <- archConstraints arch
       , msg <- acCheck c arch
       ]
       []
+      mempty
+    evidenceResult = CheckResult [] [] CheckEvidence
+      { ceCheckedRules      = [ruleCode rule | SomeRule rule <- rules]
+      , cePassedConstraints = [acName c | c <- archConstraints arch
+                                        , null (acCheck c arch)]
+      }
 
 -- | IO 検証（W003: ファイル存在確認を含む）
 checkIO :: Architecture -> IO CheckResult
@@ -71,13 +78,14 @@ checkPaths arch = fmap mconcat $ sequence
                     ("file " <> T.pack fp <> " does not exist")
                     (declName d) (Just (T.pack fp))
                 ]
+                mempty
   | d <- archDecls arch
   , fp <- declPaths d
   ]
 
 -- | 検証結果を人間可読なテキストに変換
 prettyCheck :: CheckResult -> Text
-prettyCheck (CheckResult vs ws)
+prettyCheck (CheckResult vs ws _)
   | null vs && null ws = "All checks passed."
   | otherwise = T.unlines $
       map prettyDiag vs ++ map prettyDiag ws ++

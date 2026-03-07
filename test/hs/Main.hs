@@ -240,6 +240,8 @@ main = do
     , section "Relations"         testRelations
     , section "Algebra"           testAlgebra
     , section "Manifest"          testManifest
+    , section "Evidence"          testEvidence
+    , section "Algebraic props"   testAlgebraicProperties
     ]
   let total   = sum (map fst results)
       failed  = sum (map snd results)
@@ -908,4 +910,168 @@ testManifest = do
         in  not (null (mdOutputs poDecl)))
     , ("schema_version in json",  "schema_version" `T.isInfixOf` json)
     , ("type_aliases in json",    "type_aliases" `T.isInfixOf` json)
+    ]
+
+----------------------------------------------------------------------
+-- Evidence tests
+----------------------------------------------------------------------
+
+testEvidence :: TestResult
+testEvidence = do
+  -- Evidence on a clean architecture
+  let r = check coreArch
+      ev = evidence r
+  -- Evidence on constrained architecture
+  let constrainedArch = arch "constrained" $ do
+        useLayers [core, interface, infra]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+        declare postgresOrderRepo
+        constrain "adapter-has-impl"
+          "every adapter must implement a boundary" $
+          require Adapter "has no implements"
+            (\d -> isJust (findImplements (declBody d)))
+        constrain "has-layers"
+          "must have layers" $
+          holds "no layers defined" (not . null . archLayers)
+      r2 = check constrainedArch
+      ev2 = evidence r2
+  -- Violated constraint: evidence should only contain passing constraints
+  let noImplAdapter = adapter "BareAdapter" infra $ do
+        inject "db" (ext "*sql.DB")
+      badArch = arch "bad" $ do
+        useLayers [core, infra]
+        declare noImplAdapter
+        constrain "adapter-has-impl"
+          "must implement" $
+          require Adapter "has no implements"
+            (\d -> isJust (findImplements (declBody d)))
+        constrain "has-layers"
+          "must have layers" $
+          holds "no layers" (not . null . archLayers)
+      r3 = check badArch
+      ev3 = evidence r3
+  runTests
+    [ ("evidence records checked rules",
+        not (null (ceCheckedRules ev)))
+    , ("evidence includes V001",
+        "V001" `elem` ceCheckedRules ev)
+    , ("evidence includes V009",
+        "V009" `elem` ceCheckedRules ev)
+    , ("clean arch: no constraints to pass",
+        null (cePassedConstraints ev))
+    , ("constrained: both constraints pass",
+        length (cePassedConstraints ev2) == 2)
+    , ("constrained: adapter-has-impl passes",
+        "adapter-has-impl" `elem` cePassedConstraints ev2)
+    , ("constrained: has-layers passes",
+        "has-layers" `elem` cePassedConstraints ev2)
+    , ("violated: only has-layers passes",
+        cePassedConstraints ev3 == ["has-layers"])
+    , ("violated: adapter-has-impl not in passed",
+        "adapter-has-impl" `notElem` cePassedConstraints ev3)
+    , ("evidence is monoidal identity",
+        evidence mempty == mempty)
+    ]
+
+----------------------------------------------------------------------
+-- Algebraic property tests
+----------------------------------------------------------------------
+
+testAlgebraicProperties :: TestResult
+testAlgebraicProperties = do
+  -- Test architectures
+  let archA = arch "a" $ do
+        useLayers [core, interface]
+        registerType "UUID"
+        declare order
+        declare orderRepo
+
+      archB = arch "b" $ do
+        useLayers [core, interface, infra]
+        declare paymentGateway
+        declare stripePayment
+
+      archC = arch "c" $ do
+        useLayers [core, application]
+        declare placeOrder
+        declare cancelOrder
+
+      empty_ = mergeAll "empty" []
+
+  -- merge associativity: merge (merge A B) C ≡ merge A (merge B C)
+  -- (when no name collisions — guaranteed here since all decl names are unique)
+  let ab_c = merge "x" (merge "x" archA archB) archC
+      a_bc = merge "x" archA (merge "x" archB archC)
+
+  -- merge idempotency: merge A A ≡ A (structurally, modulo name)
+  let aa = merge "a" archA archA
+
+  -- merge identity: merge A empty ≡ A (structurally)
+  let a_empty = merge "a" archA empty_
+      empty_a = merge "a" empty_ archA
+
+  -- project idempotency: project p (project p a) ≡ project p a
+  let merged = merge "all" archA archB
+      proj1 = projectLayer "core" merged
+      proj2 = projectLayer "core" proj1
+
+  let projK1 = projectKind Boundary merged
+      projK2 = projectKind Boundary projK1
+
+  -- project predicate idempotency
+  let pred_ d = declKind d == Model
+      pProj1 = project pred_ merged
+      pProj2 = project pred_ pProj1
+
+  -- mergeAll ≡ foldl merge
+  let byMergeAll = mergeAll "x" [archA, archB, archC]
+      byFold     = merge "x" (merge "x" archA archB) archC
+
+  -- diff symmetry: additions in diff A B correspond to removals in diff B A
+  let d_ab = diff archA archB
+      d_ba = diff archB archA
+      addedInAB   = length [() | Added _ <- diffDecls d_ab]
+      removedInBA = length [() | Removed _ <- diffDecls d_ba]
+      removedInAB = length [() | Removed _ <- diffDecls d_ab]
+      addedInBA   = length [() | Added _ <- diffDecls d_ba]
+
+  -- diff identity: diff A A has no changes
+  let d_aa = diff archA archA
+
+  runTests
+    [ ("merge assoc: same decl count",
+        length (archDecls ab_c) == length (archDecls a_bc))
+    , ("merge assoc: same decl names",
+        Set.fromList (map declName (archDecls ab_c))
+          == Set.fromList (map declName (archDecls a_bc)))
+    , ("merge assoc: same layer count",
+        length (archLayers ab_c) == length (archLayers a_bc))
+    , ("merge assoc: same layer names",
+        Set.fromList (map layerName (archLayers ab_c))
+          == Set.fromList (map layerName (archLayers a_bc)))
+    , ("merge idempotent: same decl count",
+        length (archDecls aa) == length (archDecls archA))
+    , ("merge idempotent: same decls",
+        map declName (archDecls aa) == map declName (archDecls archA))
+    , ("merge right identity: decls preserved",
+        map declName (archDecls a_empty) == map declName (archDecls archA))
+    , ("merge left identity: decls preserved",
+        map declName (archDecls empty_a) == map declName (archDecls archA))
+    , ("project idempotent (layer): same decls",
+        map declName (archDecls proj1) == map declName (archDecls proj2))
+    , ("project idempotent (kind): same decls",
+        map declName (archDecls projK1) == map declName (archDecls projK2))
+    , ("project idempotent (pred): same decls",
+        map declName (archDecls pProj1) == map declName (archDecls pProj2))
+    , ("mergeAll ≡ foldl merge: same decls",
+        Set.fromList (map declName (archDecls byMergeAll))
+          == Set.fromList (map declName (archDecls byFold)))
+    , ("diff symmetry: added/removed correspondence",
+        addedInAB == removedInBA && removedInAB == addedInBA)
+    , ("diff identity: no changes",
+        null (diffDecls d_aa))
+    , ("diff identity: no layer changes",
+        fst (diffLayers d_aa) == [] && snd (diffLayers d_aa) == [])
     ]

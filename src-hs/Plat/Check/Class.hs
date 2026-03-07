@@ -11,6 +11,7 @@ module Plat.Check.Class
   , Diagnostic (..)
   , Severity (..)
   , CheckResult (..)
+  , CheckEvidence (..)
   , hasViolations
   , hasWarnings
   ) where
@@ -32,17 +33,35 @@ data Diagnostic = Diagnostic
   , dTarget   :: Maybe Text -- ^ 違反先の宣言名 (存在する場合)
   } deriving stock (Show, Eq)
 
+-- | 検証通過の証拠。どのルール・制約が適用され、何が充足されたかを記録する。
+--
+-- @merge@ / @project@ 後はアーキテクチャが変わるため、証拠は無効になる。
+-- 再検証が必要かどうかの判断に使える。
+data CheckEvidence = CheckEvidence
+  { ceCheckedRules      :: [Text]  -- ^ 適用されたルールコードのリスト
+  , cePassedConstraints :: [Text]  -- ^ 充足されたアーキテクチャ制約名のリスト
+  } deriving stock (Show, Eq)
+
+instance Semigroup CheckEvidence where
+  CheckEvidence r1 c1 <> CheckEvidence r2 c2 =
+    CheckEvidence (r1 <> r2) (c1 <> c2)
+
+instance Monoid CheckEvidence where
+  mempty = CheckEvidence [] []
+
 -- | 検証結果。'Monoid' で複数ルールの結果を合成可能。
 data CheckResult = CheckResult
-  { violations :: [Diagnostic] -- ^ 'Error' レベルの診断
-  , warnings   :: [Diagnostic] -- ^ 'Warning' レベルの診断
+  { violations :: [Diagnostic]    -- ^ 'Error' レベルの診断
+  , warnings   :: [Diagnostic]    -- ^ 'Warning' レベルの診断
+  , evidence   :: CheckEvidence   -- ^ 検証通過の証拠
   } deriving stock (Show, Eq)
 
 instance Semigroup CheckResult where
-  CheckResult v1 w1 <> CheckResult v2 w2 = CheckResult (v1 <> v2) (w1 <> w2)
+  CheckResult v1 w1 e1 <> CheckResult v2 w2 e2 =
+    CheckResult (v1 <> v2) (w1 <> w2) (e1 <> e2)
 
 instance Monoid CheckResult where
-  mempty = CheckResult [] []
+  mempty = CheckResult [] [] mempty
 
 -- | 'Error' レベルの診断が存在するか
 hasViolations :: CheckResult -> Bool
