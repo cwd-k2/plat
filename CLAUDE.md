@@ -83,6 +83,7 @@ Meta DSL の4パターン:
 | ツール | 用途 | 入力 |
 |--------|------|------|
 | `plat-verify` | 構造適合性検証 | manifest + ソースコード |
+| `plat-doc` | ドキュメント生成 (Markdown/Mermaid/DSM) | manifest |
 | `plat-skeleton` | コードスカフォールド生成 | manifest |
 | `plat-contract` | テストスケルトン生成 | manifest |
 | `plat-deprules` | linter 依存ルール生成 | manifest |
