@@ -29,27 +29,29 @@ pub struct Summary {
     pub info: usize,
     pub decls_checked: usize,
     pub decls_ok: usize,
-    pub fields_checked: usize,
-    pub fields_ok: usize,
-    pub ops_checked: usize,
-    pub ops_ok: usize,
 }
 
 impl Summary {
     pub fn from_findings(findings: &[Finding], decls_total: usize) -> Self {
-        let mut s = Self::default();
-        s.decls_checked = decls_total;
+        let mut errors = 0;
+        let mut warnings = 0;
+        let mut info = 0;
         let mut decl_issues = std::collections::HashSet::new();
         for f in findings {
             match f.severity {
-                Severity::Error => s.errors += 1,
-                Severity::Warning => s.warnings += 1,
-                Severity::Info => s.info += 1,
+                Severity::Error => errors += 1,
+                Severity::Warning => warnings += 1,
+                Severity::Info => info += 1,
             }
             decl_issues.insert(&f.declaration);
         }
-        s.decls_ok = decls_total.saturating_sub(decl_issues.len());
-        s
+        Self {
+            errors,
+            warnings,
+            info,
+            decls_checked: decls_total,
+            decls_ok: decls_total.saturating_sub(decl_issues.len()),
+        }
     }
 }
 

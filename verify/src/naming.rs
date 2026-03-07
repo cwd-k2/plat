@@ -13,7 +13,7 @@ fn split_words(s: &str) -> Vec<String> {
         } else if ch.is_uppercase() && !current.is_empty() {
             // Check if previous char was lowercase (camelCase boundary)
             // or next forms a new word in ALLCAPS -> Word transition
-            let prev_lower = current.chars().last().map_or(false, |c| c.is_lowercase());
+            let prev_lower = current.chars().last().is_some_and(|c| c.is_lowercase());
             if prev_lower {
                 words.push(current);
                 current = String::new();

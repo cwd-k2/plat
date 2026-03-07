@@ -15,7 +15,7 @@ pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {
 pub fn is_test_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
-        .map_or(false, |n| n.ends_with("_test.go"))
+        .is_some_and(|n| n.ends_with("_test.go"))
 }
 
 /// Parse a single Go source file and extract type definitions.
@@ -153,7 +153,7 @@ fn parse_method_spec(node: tree_sitter::Node, source: &[u8]) -> Option<MethodDef
 fn extract_method_receivers(
     root: tree_sitter::Node,
     source: &[u8],
-    types: &mut Vec<TypeDef>,
+    types: &mut [TypeDef],
 ) {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {

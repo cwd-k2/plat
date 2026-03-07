@@ -94,21 +94,11 @@ pub enum Case {
     Snake,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct NamingConfig {
     pub type_case: Option<Case>,
     pub field_case: Option<Case>,
     pub method_case: Option<Case>,
-}
-
-impl Default for NamingConfig {
-    fn default() -> Self {
-        Self {
-            type_case: None,
-            field_case: None,
-            method_case: None,
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]

@@ -89,7 +89,7 @@ fn extract_trait_items(
 fn extract_impl_items(
     node: tree_sitter::Node,
     source: &[u8],
-    types: &mut Vec<TypeDef>,
+    types: &mut [TypeDef],
 ) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
@@ -153,7 +153,7 @@ fn extract_trait(node: tree_sitter::Node, source: &[u8], file: &Path) -> Option<
 fn extract_impl(
     node: tree_sitter::Node,
     source: &[u8],
-    types: &mut Vec<TypeDef>,
+    types: &mut [TypeDef],
 ) {
     let (trait_name, struct_name) = parse_impl_header(node, source);
     let Some(struct_name) = struct_name else {
@@ -248,7 +248,7 @@ fn extract_trait_methods(node: tree_sitter::Node, source: &[u8]) -> Vec<MethodDe
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "function_signature_item" {
-            if let Some(method) = parse_function_signature(child, source) {
+            if let Some(method) = parse_fn_node(child, source) {
                 methods.push(method);
             }
         }
@@ -261,7 +261,7 @@ fn extract_impl_methods(node: tree_sitter::Node, source: &[u8]) -> Vec<MethodDef
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "function_item" {
-            if let Some(method) = parse_function_item(child, source) {
+            if let Some(method) = parse_fn_node(child, source) {
                 methods.push(method);
             }
         }
@@ -269,24 +269,7 @@ fn extract_impl_methods(node: tree_sitter::Node, source: &[u8]) -> Vec<MethodDef
     methods
 }
 
-fn parse_function_signature(node: tree_sitter::Node, source: &[u8]) -> Option<MethodDef> {
-    let name_node = node.child_by_field_name("name")?;
-    let params = node
-        .child_by_field_name("parameters")
-        .map(|p| extract_params(p, source))
-        .unwrap_or_default();
-    let returns = node
-        .child_by_field_name("return_type")
-        .map(|r| vec![node_text(r, source).to_string()])
-        .unwrap_or_default();
-    Some(MethodDef {
-        name: node_text(name_node, source).to_string(),
-        params,
-        returns,
-    })
-}
-
-fn parse_function_item(node: tree_sitter::Node, source: &[u8]) -> Option<MethodDef> {
+fn parse_fn_node(node: tree_sitter::Node, source: &[u8]) -> Option<MethodDef> {
     let name_node = node.child_by_field_name("name")?;
     let params = node
         .child_by_field_name("parameters")

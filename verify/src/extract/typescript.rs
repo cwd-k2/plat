@@ -15,7 +15,7 @@ pub fn new_parser() -> Result<Parser, Box<dyn std::error::Error>> {
 pub fn is_test_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
-        .map_or(false, |n| n.ends_with(".test.ts") || n.ends_with(".spec.ts"))
+        .is_some_and(|n| n.ends_with(".test.ts") || n.ends_with(".spec.ts"))
 }
 
 /// Parse a single TypeScript source file and extract type definitions.
@@ -403,7 +403,7 @@ type UserService = {
 "#;
         let types = parse(src);
 
-        
+
         assert_eq!(types.len(), 1);
 
         let svc = &types[0];
@@ -432,7 +432,7 @@ type ID = string;
 "#;
         let types = parse(src);
 
-        
+
         assert_eq!(types.len(), 0, "union and primitive type aliases should be skipped");
     }
 
@@ -449,7 +449,7 @@ class PostgresRepository implements Repository {
 "#;
         let types = parse(src);
 
-        
+
         assert_eq!(types.len(), 2);
 
         let repo_iface = types.iter().find(|t| t.name == "Repository").expect("Repository not found");
@@ -480,7 +480,7 @@ export type OrderConfig = {
 "#;
         let types = parse(src);
 
-        
+
         assert_eq!(types.len(), 3, "expected exported class, interface, and type alias");
 
         let svc = types.iter().find(|t| t.name == "OrderService").expect("OrderService not found");
@@ -522,7 +522,7 @@ class App {
 "#;
         let types = parse(src);
 
-        
+
         assert_eq!(types.len(), 4, "expected Logger, ConsoleLogger, AppConfig, App");
 
         let logger = types.iter().find(|t| t.name == "Logger").expect("Logger not found");

@@ -29,6 +29,7 @@ pub struct Declaration {
     #[serde(default)]
     pub injects: Vec<Field>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub entries: Vec<String>,
 }
 
