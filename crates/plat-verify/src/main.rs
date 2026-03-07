@@ -2,6 +2,7 @@ mod cache;
 mod check;
 mod config;
 mod extract;
+mod lsp;
 mod report;
 
 use std::path::PathBuf;
@@ -70,6 +71,10 @@ struct Cli {
     /// Watch for file changes and re-verify
     #[arg(short, long)]
     watch: bool,
+
+    /// Run as Language Server Protocol server over stdin/stdout
+    #[arg(long)]
+    lsp: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -81,6 +86,7 @@ enum CheckCategory {
     #[value(name = "layer-deps")]
     LayerDeps,
     Imports,
+    Naming,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -201,6 +207,7 @@ fn main() {
         config.checks.drift = cli.checks.contains(&CheckCategory::Drift);
         config.checks.layer_deps = cli.checks.contains(&CheckCategory::LayerDeps);
         config.checks.imports = cli.checks.contains(&CheckCategory::Imports);
+        config.checks.naming = cli.checks.contains(&CheckCategory::Naming);
     }
 
     let format = match cli.format {
@@ -217,7 +224,12 @@ fn main() {
         quiet: cli.quiet,
     };
 
-    if cli.watch {
+    if cli.lsp {
+        if let Err(e) = lsp::run(params.manifest_path, params.config) {
+            eprintln!("LSP error: {e}");
+            process::exit(2);
+        }
+    } else if cli.watch {
         run_watch(&params);
     } else {
         let code = verify_once(&params);

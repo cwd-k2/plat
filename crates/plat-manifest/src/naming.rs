@@ -27,6 +27,33 @@ fn split_words(s: &str) -> Vec<String> {
     words
 }
 
+/// Check if a name conforms to the given case convention.
+///
+/// Uses structural checks rather than round-tripping through `convert`,
+/// so that idiomatic acronyms like `ID`, `URL`, `HTTP` are accepted
+/// as valid PascalCase.
+pub fn matches_case(name: &str, case: Case) -> bool {
+    if name.is_empty() {
+        return true;
+    }
+    match case {
+        Case::Pascal => {
+            // Must start with uppercase, no underscores/hyphens
+            let first = name.chars().next().unwrap();
+            first.is_uppercase() && !name.contains('_') && !name.contains('-')
+        }
+        Case::Camel => {
+            // Must start with lowercase, no underscores/hyphens
+            let first = name.chars().next().unwrap();
+            first.is_lowercase() && !name.contains('_') && !name.contains('-')
+        }
+        Case::Snake => {
+            // All lowercase (or digits) with underscores as separators
+            name.chars().all(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_')
+        }
+    }
+}
+
 pub fn convert(name: &str, target: Case) -> String {
     let words = split_words(name);
     if words.is_empty() {
@@ -96,5 +123,23 @@ mod tests {
         assert_eq!(convert("Order", Case::Snake), "order");
         assert_eq!(convert("Order", Case::Camel), "order");
         assert_eq!(convert("Order", Case::Pascal), "Order");
+    }
+
+    #[test]
+    fn matches_case_positive() {
+        assert!(matches_case("PlaceOrder", Case::Pascal));
+        assert!(matches_case("ID", Case::Pascal));
+        assert!(matches_case("HTTPHandler", Case::Pascal));
+        assert!(matches_case("placeOrder", Case::Camel));
+        assert!(matches_case("place_order", Case::Snake));
+        assert!(matches_case("order_id", Case::Snake));
+    }
+
+    #[test]
+    fn matches_case_negative() {
+        assert!(!matches_case("place_order", Case::Pascal));
+        assert!(!matches_case("PlaceOrder", Case::Camel));
+        assert!(!matches_case("PlaceOrder", Case::Snake));
+        assert!(!matches_case("PLACE_ORDER", Case::Snake));
     }
 }

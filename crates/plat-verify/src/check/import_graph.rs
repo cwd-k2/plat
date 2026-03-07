@@ -71,7 +71,139 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
         }
     }
 
+    // I002: import cycle detection
+    findings.extend(check_cycles(facts, config));
+
     findings
+}
+
+/// I002: Detect import cycles among source files.
+///
+/// Builds a directed graph from file → imported files and reports any cycles.
+/// Import paths are resolved to known files using layer_dirs and path heuristics.
+fn check_cycles(facts: &[FileFacts], config: &Config) -> Vec<Finding> {
+    let layer_dirs = &config.source.layer_dirs;
+
+    // Build file index: layer component → list of file indices
+    let mut layer_files: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, f) in facts.iter().enumerate() {
+        if let Some(ref layer) = f.layer {
+            layer_files.entry(layer.clone()).or_default().push(i);
+        }
+    }
+
+    // Build adjacency: file index → set of file indices it imports
+    let mut adj: HashMap<usize, HashSet<usize>> = HashMap::new();
+    for (i, f) in facts.iter().enumerate() {
+        for import_path in &f.imports {
+            // Try to resolve import to a known file
+            let target_layer = resolve_import_layer(
+                import_path,
+                layer_dirs,
+                config.source.layer_match,
+            );
+            if let Some(ref layer) = target_layer {
+                if let Some(targets) = layer_files.get(layer) {
+                    for &t in targets {
+                        if t != i {
+                            adj.entry(i).or_default().insert(t);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // DFS cycle detection
+    let n = facts.len();
+    let mut color = vec![0u8; n]; // 0=white, 1=grey, 2=black
+    let mut findings = Vec::new();
+    let mut reported_cycles: HashSet<Vec<usize>> = HashSet::new();
+
+    for start in 0..n {
+        if color[start] == 0 {
+            let mut path = Vec::new();
+            dfs_cycle(
+                start,
+                &adj,
+                &mut color,
+                &mut path,
+                facts,
+                &mut findings,
+                &mut reported_cycles,
+            );
+        }
+    }
+
+    findings
+}
+
+fn dfs_cycle(
+    node: usize,
+    adj: &HashMap<usize, HashSet<usize>>,
+    color: &mut [u8],
+    path: &mut Vec<usize>,
+    facts: &[FileFacts],
+    findings: &mut Vec<Finding>,
+    reported: &mut HashSet<Vec<usize>>,
+) {
+    color[node] = 1; // grey
+    path.push(node);
+
+    if let Some(neighbors) = adj.get(&node) {
+        for &next in neighbors {
+            if color[next] == 1 {
+                // Found a cycle — extract the cycle from path
+                if let Some(pos) = path.iter().position(|&n| n == next) {
+                    let mut cycle: Vec<usize> = path[pos..].to_vec();
+                    // Normalize: rotate so smallest index is first
+                    if let Some(min_pos) = cycle.iter().enumerate().min_by_key(|(_, &v)| v).map(|(i, _)| i) {
+                        cycle.rotate_left(min_pos);
+                    }
+                    if reported.insert(cycle.clone()) {
+                        let names: Vec<String> = cycle
+                            .iter()
+                            .map(|&i| {
+                                facts[i]
+                                    .path
+                                    .file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or("?")
+                                    .to_string()
+                            })
+                            .collect();
+                        let layers: Vec<String> = cycle
+                            .iter()
+                            .filter_map(|&i| facts[i].layer.clone())
+                            .collect();
+                        let layer_info = if !layers.is_empty() {
+                            format!(" (layers: {})", layers.join(" → "))
+                        } else {
+                            String::new()
+                        };
+                        findings.push(Finding {
+                            code: "I002".to_string(),
+                            severity: Severity::Warning,
+                            declaration: names[0].clone(),
+                            message: format!(
+                                "import cycle: {}{}",
+                                names.join(" → "),
+                                layer_info
+                            ),
+                            expected: None,
+                            source_file: Some(facts[cycle[0]].path.to_string_lossy().to_string()),
+                            source_line: None,
+                        });
+                    }
+                }
+            } else if color[next] == 0 {
+                dfs_cycle(next, adj, color, path, facts, findings, reported);
+            }
+        }
+    }
+
+    path.pop();
+    color[node] = 2; // black
 }
 
 /// Resolve the layer of an import path using the layer_dirs mapping.
@@ -271,5 +403,42 @@ mod tests {
         let findings = check(&manifest, &facts, &config);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].code, "I001");
+    }
+
+    #[test]
+    fn i002_import_cycle() {
+        let manifest = test_manifest();
+        let config = test_config(vec![
+            ("domain", "domain"),
+            ("port", "port"),
+        ]);
+        // domain/a.go imports port/b, port/b.go imports domain/a → cycle
+        let facts = vec![
+            make_facts("src/domain/a.go", "domain", vec!["myapp/port/b"]),
+            make_facts("src/port/b.go", "port", vec!["myapp/domain/a"]),
+        ];
+        let findings = check(&manifest, &facts, &config);
+        let i002: Vec<_> = findings.iter().filter(|f| f.code == "I002").collect();
+        assert_eq!(i002.len(), 1, "expected 1 cycle: {:?}", i002);
+        assert!(i002[0].message.contains("import cycle"));
+    }
+
+    #[test]
+    fn i002_no_cycle() {
+        let manifest = test_manifest();
+        let config = test_config(vec![
+            ("domain", "domain"),
+            ("port", "port"),
+            ("infra", "infra"),
+        ]);
+        // Linear: infra → port → domain (no cycle)
+        let facts = vec![
+            make_facts("src/domain/order.go", "domain", vec![]),
+            make_facts("src/port/repo.go", "port", vec!["myapp/domain/order"]),
+            make_facts("src/infra/pg.go", "infra", vec!["myapp/port/repo"]),
+        ];
+        let findings = check(&manifest, &facts, &config);
+        let i002: Vec<_> = findings.iter().filter(|f| f.code == "I002").collect();
+        assert!(i002.is_empty());
     }
 }

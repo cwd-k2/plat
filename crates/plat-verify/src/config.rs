@@ -62,6 +62,8 @@ pub struct ChecksConfig {
     #[serde(default)]
     pub imports: bool,
     #[serde(default)]
+    pub naming: bool,
+    #[serde(default)]
     pub severity: HashMap<String, Severity>,
 }
 
@@ -74,6 +76,7 @@ impl Default for ChecksConfig {
             drift: false,
             layer_deps: false,
             imports: false,
+            naming: false,
             severity: HashMap::new(),
         }
     }
