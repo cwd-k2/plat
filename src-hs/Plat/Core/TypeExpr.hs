@@ -168,7 +168,7 @@ setOf = set . ref
 
 -- | ターゲット言語固有の外部型（W002 検証対象外）
 ext :: Text -> TypeExpr
-ext = TRef
+ext = TExt
 
 -- | プロジェクト定義のカスタム型（registerType で登録、W002 検証対象）
 customType :: Text -> TypeExpr
@@ -206,3 +206,4 @@ renderTypeExpr (TRef name) = name
 renderTypeExpr (TGeneric name args) =
   name <> "<" <> T.intercalate ", " (map renderTypeExpr args) <> ">"
 renderTypeExpr (TNullable t) = renderTypeExpr t <> "?"
+renderTypeExpr (TExt name) = name

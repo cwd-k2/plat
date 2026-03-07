@@ -80,6 +80,8 @@ testRelations = do
         typeRefs (listOf order) == ["Order"])
     , ("typeRefs extracts nullable",
         typeRefs (nullable (ref order)) == ["Order"])
+    , ("typeRefs excludes TExt",
+        typeRefs (ext "*sql.DB") == [])
     , ("manifest has explicit relations",
         length (mRelations m) == 2)
     , ("manifest relation round-trip",

@@ -26,11 +26,11 @@ import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 
 import Plat.Core.Types
+import Plat.Core.TypeExpr (renderTypeExpr)
 
 ----------------------------------------------------------------------
 -- Manifest types
@@ -281,7 +281,7 @@ toManifestLayer :: LayerDef -> ManifestLayer
 toManifestLayer ly = ManifestLayer (layerName ly) (layerDeps ly)
 
 toManifestTypeAlias :: TypeAlias -> ManifestTypeAlias
-toManifestTypeAlias ta = ManifestTypeAlias (aliasName ta) (renderTE (aliasType ta))
+toManifestTypeAlias ta = ManifestTypeAlias (aliasName ta) (renderTypeExpr (aliasType ta))
 
 toManifestDecl :: Declaration -> ManifestDecl
 toManifestDecl d = ManifestDecl
@@ -289,16 +289,16 @@ toManifestDecl d = ManifestDecl
   , mdKind       = kindText (declKind d)
   , mdLayer      = declLayer d
   , mdPaths      = declPaths d
-  , mdFields     = [ManifestField n (renderTE t) | Field n t <- declBody d]
+  , mdFields     = [ManifestField n (renderTypeExpr t) | Field n t <- declBody d]
   , mdOps        = [ManifestOp n
-                      [ManifestField pn (renderTE pt) | Param pn pt <- ins]
-                      [ManifestField pn (renderTE pt) | Param pn pt <- outs]
+                      [ManifestField pn (renderTypeExpr pt) | Param pn pt <- ins]
+                      [ManifestField pn (renderTypeExpr pt) | Param pn pt <- outs]
                    | Op n ins outs <- declBody d]
-  , mdInputs     = [ManifestField n (renderTE t) | Input n t <- declBody d]
-  , mdOutputs    = [ManifestField n (renderTE t) | Output n t <- declBody d]
+  , mdInputs     = [ManifestField n (renderTypeExpr t) | Input n t <- declBody d]
+  , mdOutputs    = [ManifestField n (renderTypeExpr t) | Output n t <- declBody d]
   , mdNeeds      = declNeeds d
   , mdImplements = findImplements (declBody d)
-  , mdInjects    = [ManifestField n (renderTE t) | Inject n t <- declBody d]
+  , mdInjects    = [ManifestField n (renderTypeExpr t) | Inject n t <- declBody d]
   , mdEntries    = [n | Entry n <- declBody d]
   , mdMeta       = declMeta d
   }
@@ -312,25 +312,6 @@ kindText Boundary  = "boundary"
 kindText Operation = "operation"
 kindText Adapter   = "adapter"
 kindText Compose   = "compose"
-
-----------------------------------------------------------------------
--- Render TypeExpr (language-agnostic)
-----------------------------------------------------------------------
-
-renderTE :: TypeExpr -> Text
-renderTE (TBuiltin b) = case b of
-  BString   -> "String"
-  BInt      -> "Int"
-  BFloat    -> "Float"
-  BDecimal  -> "Decimal"
-  BBool     -> "Bool"
-  BUnit     -> "Unit"
-  BBytes    -> "Bytes"
-  BDateTime -> "DateTime"
-  BAny      -> "Any"
-renderTE (TRef name) = name
-renderTE (TGeneric name args) = name <> "<" <> T.intercalate ", " (map renderTE args) <> ">"
-renderTE (TNullable t) = renderTE t <> "?"
 
 ----------------------------------------------------------------------
 -- JSON rendering / parsing

@@ -129,6 +129,11 @@ module Plat.Core
   , refer
   , references
 
+    -- * Constraint presets
+  , operationNeedsBoundary
+  , unwiredBoundaries
+  , noNeedsCycle
+
     -- * Type expressions
   , string
   , int
@@ -167,3 +172,4 @@ import Plat.Core.Relation
 import Plat.Core.Algebra
 import Plat.Core.TypeExpr
 import Plat.Core.Meta
+import Plat.Check.Presets

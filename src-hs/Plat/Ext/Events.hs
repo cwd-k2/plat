@@ -18,6 +18,8 @@ import Plat.Core.Builder
 import Plat.Core.Meta
 import Plat.Check.Class
 
+import qualified Data.Set as Set
+
 -- | Events extension identifier
 events :: ExtId
 events = extId "events"
@@ -48,6 +50,41 @@ on_ name evt ly body = operation name ly $ do
 apply :: Decl 'Model -> DeclWriter 'Model ()
 apply = refer events "apply"
 
--- | Events 拡張の検証ルール一覧 (現在は空)
+----------------------------------------------------------------------
+-- Events Rules
+----------------------------------------------------------------------
+
+-- | EVT-V001: emit で参照されたイベントが Architecture 内に存在すること
+data EmitTargetExistsRule = EmitTargetExistsRule
+instance PlatRule EmitTargetExistsRule where
+  ruleCode _ = "EVT-V001"
+  checkDecl _ arch d =
+    [ Diagnostic Error "EVT-V001"
+        ("operation " <> declName d <> " emits unknown event " <> evtName)
+        (declName d) (Just evtName)
+    | evtName <- references events "emit" d
+    , evtName `Set.notMember` declNames
+    ]
+    where declNames = Set.fromList [declName dd | dd <- archDecls arch]
+
+-- | EVT-W001: on_ ハンドラの対象イベントが Architecture 内に存在すること
+data HandlerTargetExistsRule = HandlerTargetExistsRule
+instance PlatRule HandlerTargetExistsRule where
+  ruleCode _ = "EVT-W001"
+  checkDecl _ arch d
+    | isTagged evtHandler d
+    , Just evtName <- lookupAttr events "on" d
+    , evtName `Set.notMember` declNames
+    = [ Diagnostic Warning "EVT-W001"
+          ("handler " <> declName d <> " targets unknown event " <> evtName)
+          (declName d) (Just evtName)
+      ]
+    | otherwise = []
+    where declNames = Set.fromList [declName dd | dd <- archDecls arch]
+
+-- | Events 拡張の検証ルール一覧
 eventsRules :: [SomeRule]
-eventsRules = []
+eventsRules =
+  [ SomeRule EmitTargetExistsRule
+  , SomeRule HandlerTargetExistsRule
+  ]

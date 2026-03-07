@@ -22,6 +22,7 @@ module Plat.Core.Relation
   ) where
 
 import Data.Text (Text)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import Plat.Core.Types
@@ -84,37 +85,44 @@ boundTo name a =
 transitive :: [Text] -> Text -> Architecture -> Set.Set Text
 transitive kinds start a = go Set.empty [start]
   where
-    rels = relations a
+    kindSet = Set.fromList kinds
+    adjMap = Map.fromListWith (++)
+      [ (relSource r, [relTarget r])
+      | r <- relations a, relKind r `Set.member` kindSet
+      ]
     go visited [] = visited
     go visited (x:xs)
       | x `Set.member` visited = go visited xs
-      | otherwise =
-          let targets = [relTarget r | r <- rels, relSource r == x, relKind r `elem` kinds]
-          in go (Set.insert x visited) (targets ++ xs)
+      | otherwise = go (Set.insert x visited)
+                       (Map.findWithDefault [] x adjMap ++ xs)
 
 -- | 任意の関係に沿って到達可能な全宣言名（起点含む）。
 reachable :: Text -> Architecture -> Set.Set Text
 reachable start a = go Set.empty [start]
   where
-    rels = relations a
+    adjMap = Map.fromListWith (++)
+      [ (relSource r, [relTarget r]) | r <- relations a ]
     go visited [] = visited
     go visited (x:xs)
       | x `Set.member` visited = go visited xs
-      | otherwise =
-          let targets = [relTarget r | r <- rels, relSource r == x]
-          in go (Set.insert x visited) (targets ++ xs)
+      | otherwise = go (Set.insert x visited)
+                       (Map.findWithDefault [] x adjMap ++ xs)
 
 -- | 指定種類の関係がサイクルを含まないか検査する。
 isAcyclic :: [Text] -> Architecture -> Bool
 isAcyclic kinds a = all (\d -> declName d `Set.notMember` reach d) (archDecls a)
   where
-    rels = [r | r <- relations a, relKind r `elem` kinds]
-    reach d = go Set.empty (targets (declName d))
-    targets name = [relTarget r | r <- rels, relSource r == name]
+    kindSet = Set.fromList kinds
+    adjMap = Map.fromListWith (++)
+      [ (relSource r, [relTarget r])
+      | r <- relations a, relKind r `Set.member` kindSet
+      ]
+    reach d = go Set.empty (Map.findWithDefault [] (declName d) adjMap)
     go visited [] = visited
     go visited (x:xs)
-      | x `Set.member` visited = visited
-      | otherwise = go (Set.insert x visited) (targets x ++ xs)
+      | x `Set.member` visited = go visited xs
+      | otherwise = go (Set.insert x visited)
+                       (Map.findWithDefault [] x adjMap ++ xs)
 
 -- | TypeExpr から全 TRef 名を抽出する。
 typeRefs :: TypeExpr -> [Text]
@@ -122,3 +130,4 @@ typeRefs (TBuiltin _)       = []
 typeRefs (TRef name)        = [name]
 typeRefs (TGeneric _ args)  = concatMap typeRefs args
 typeRefs (TNullable t)      = typeRefs t
+typeRefs (TExt _)           = []

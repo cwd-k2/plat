@@ -149,6 +149,7 @@ data TypeExpr
   | TRef      Text             -- ^ 他の宣言・型エイリアスへの参照
   | TGeneric  Text [TypeExpr]  -- ^ ジェネリック型（@List\<T\>@, @Result\<T, E\>@ 等）
   | TNullable TypeExpr         -- ^ nullable 修飾（@T?@）
+  | TExt      Text             -- ^ 外部型（ターゲット言語固有、W002 検証対象外）
   deriving stock (Show, Eq, Ord)
 
 -- | ビルトイン型。言語非依存なプリミティブ。ターゲット言語の型マッピングで具象化される。

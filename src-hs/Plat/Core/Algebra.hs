@@ -25,6 +25,7 @@ module Plat.Core.Algebra
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Set as Set
+import Control.Monad (foldM)
 
 import Plat.Core.Types
 
@@ -32,30 +33,32 @@ import Plat.Core.Types
 -- Composition
 ----------------------------------------------------------------------
 
--- | 2 つの Architecture を合成する。名前の衝突は左優先で解決される。
+-- | 2 つの Architecture を合成する。構造的不整合がある場合は 'Left' を返す。
 --
 -- @
 -- system = merge "platform" orderService paymentService
 -- @
-merge :: Text -> Architecture -> Architecture -> Architecture
-merge name a b = Architecture
-  { archName        = name
-  , archLayers      = nubBy' layerName (archLayers a ++ archLayers b)
-  , archTypes       = nubBy' aliasName (archTypes a ++ archTypes b)
-  , archCustomTypes = Set.toList (Set.fromList (archCustomTypes a ++ archCustomTypes b))
-  , archDecls       = nubBy' declName  (archDecls a ++ archDecls b)
-  , archConstraints = nubBy' acName    (archConstraints a ++ archConstraints b)
-  , archRelations   = ordNub (archRelations a ++ archRelations b)
-  , archMeta        = nubBy' fst       (archMeta a ++ archMeta b)
-  }
+merge :: Text -> Architecture -> Architecture -> Either [Conflict] Architecture
+merge name a b = case isCompatible a b of
+  cs@(_:_) -> Left cs
+  []       -> Right Architecture
+    { archName        = name
+    , archLayers      = nubBy' layerName (archLayers a ++ archLayers b)
+    , archTypes       = nubBy' aliasName (archTypes a ++ archTypes b)
+    , archCustomTypes = Set.toList (Set.fromList (archCustomTypes a ++ archCustomTypes b))
+    , archDecls       = nubBy' declName  (archDecls a ++ archDecls b)
+    , archConstraints = nubBy' acName    (archConstraints a ++ archConstraints b)
+    , archRelations   = ordNub (archRelations a ++ archRelations b)
+    , archMeta        = nubBy' fst       (archMeta a ++ archMeta b)
+    }
 
 -- | 複数の Architecture を合成する。空リストなら空のアーキテクチャを返す。
 --
 -- @
 -- system = mergeAll "platform" [shared, orderService, paymentService]
 -- @
-mergeAll :: Text -> [Architecture] -> Architecture
-mergeAll name = foldl' (merge name) empty
+mergeAll :: Text -> [Architecture] -> Either [Conflict] Architecture
+mergeAll name = foldM (merge name) empty
   where
     empty = Architecture name [] [] [] [] [] [] []
 
@@ -148,7 +151,7 @@ project p a = a
     kept  = filter p (archDecls a)
     names = Set.fromList (map declName kept)
     relOk r = relSource r `Set.member` names
-           || relTarget r `Set.member` names
+           && relTarget r `Set.member` names
 
 -- | 指定レイヤーの宣言のみを射影する。
 projectLayer :: Text -> Architecture -> Architecture

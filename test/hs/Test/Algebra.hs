@@ -4,6 +4,7 @@ module Test.Algebra
   , testCompatibility
   ) where
 
+import Data.Text (Text)
 import Plat.Core
 
 import qualified Data.Set as Set
@@ -11,6 +12,17 @@ import qualified Data.Text as T
 
 import Test.Harness
 import Test.Fixtures
+
+-- | merge の Right を取り出す（テスト用）
+unsafeMerge :: Text -> Architecture -> Architecture -> Architecture
+unsafeMerge name a b = case merge name a b of
+  Right x -> x
+  Left cs -> error $ "merge failed: " ++ show cs
+
+unsafeMergeAll :: Text -> [Architecture] -> Architecture
+unsafeMergeAll name as = case mergeAll name as of
+  Right x -> x
+  Left cs -> error $ "mergeAll failed: " ++ show cs
 
 ----------------------------------------------------------------------
 
@@ -29,9 +41,9 @@ testAlgebra = do
         declare stripePayment
 
       -- merge
-      merged = merge "platform" orderArch paymentArch
+      merged = unsafeMerge "platform" orderArch paymentArch
       -- mergeAll
-      merged2 = mergeAll "platform" [orderArch, paymentArch]
+      merged2 = unsafeMergeAll "platform" [orderArch, paymentArch]
 
   -- project
   let domainOnly = projectLayer "core" merged
@@ -62,7 +74,9 @@ testAlgebra = do
     , ("mergeAll: same result as merge",
         archDecls merged2 == archDecls merged)
     , ("mergeAll: empty list gives empty arch",
-        null (archDecls (mergeAll "empty" [])))
+        case mergeAll "empty" [] of
+          Right a -> null (archDecls a)
+          Left  _ -> False)
     , ("project: core has Order",
         any (\d' -> declName d' == "Order") (archDecls domainOnly))
     , ("project: core has no Boundary",
@@ -104,22 +118,21 @@ testAlgebraicProperties = do
         declare placeOrder
         declare cancelOrder
 
-      empty_ = mergeAll "empty" []
+      empty_ = unsafeMergeAll "empty" []
 
   -- merge associativity: merge (merge A B) C ≡ merge A (merge B C)
-  -- (when no name collisions — guaranteed here since all decl names are unique)
-  let ab_c = merge "x" (merge "x" archA archB) archC
-      a_bc = merge "x" archA (merge "x" archB archC)
+  let ab_c = unsafeMerge "x" (unsafeMerge "x" archA archB) archC
+      a_bc = unsafeMerge "x" archA (unsafeMerge "x" archB archC)
 
   -- merge idempotency: merge A A ≡ A (structurally, modulo name)
-  let aa = merge "a" archA archA
+  let aa = unsafeMerge "a" archA archA
 
   -- merge identity: merge A empty ≡ A (structurally)
-  let a_empty = merge "a" archA empty_
-      empty_a = merge "a" empty_ archA
+  let a_empty = unsafeMerge "a" archA empty_
+      empty_a = unsafeMerge "a" empty_ archA
 
   -- project idempotency: project p (project p a) ≡ project p a
-  let merged = merge "all" archA archB
+  let merged = unsafeMerge "all" archA archB
       proj1 = projectLayer "core" merged
       proj2 = projectLayer "core" proj1
 
@@ -132,8 +145,8 @@ testAlgebraicProperties = do
       pProj2 = project pred_ pProj1
 
   -- mergeAll ≡ foldl merge
-  let byMergeAll = mergeAll "x" [archA, archB, archC]
-      byFold     = merge "x" (merge "x" archA archB) archC
+  let byMergeAll = unsafeMergeAll "x" [archA, archB, archC]
+      byFold     = unsafeMerge "x" (unsafeMerge "x" archA archB) archC
 
   -- diff symmetry: additions in diff A B correspond to removals in diff B A
   let d_ab = diff archA archB
@@ -180,7 +193,15 @@ testAlgebraicProperties = do
         null (diffDecls d_aa))
     , ("diff identity: no layer changes",
         fst (diffLayers d_aa) == [] && snd (diffLayers d_aa) == [])
+    , ("merge conflict: returns Left",
+        case merge "x" archA conflictArch of
+          Left cs -> any (\c -> T.isInfixOf "kind mismatch" (conflictDesc c)) cs
+          Right _ -> False)
     ]
+  where
+    conflictArch = arch "conflict" $ do
+      useLayers [core]
+      declare $ model "OrderRepository" core $ field "x" string
 
 ----------------------------------------------------------------------
 
@@ -237,4 +258,12 @@ testCompatibility = do
             (isCompatible archA archConflictLayerDeps))
     , ("conflict count for kind mismatch",
         length (isCompatible archA archConflictKind) >= 1)
+    , ("merge with conflict returns Left",
+        case merge "x" archA archConflictKind of
+          Left _  -> True
+          Right _ -> False)
+    , ("merge compatible returns Right",
+        case merge "x" archA archB of
+          Right _ -> True
+          Left  _ -> False)
     ]

@@ -67,6 +67,6 @@ declEdges declMap d = case declKind d of
   where
     me = sanitize (declName d)
 
--- | Mermaid ノード ID に使える形にサニタイズ
+-- | Mermaid ノード ID に使える形にサニタイズ（英数字とアンダースコアのみ残す）
 sanitize :: Text -> Text
-sanitize = T.filter (\c -> c /= ' ' && c /= '-')
+sanitize = T.filter (\c -> c `elem` (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['_']))

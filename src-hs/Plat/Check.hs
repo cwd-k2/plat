@@ -73,13 +73,13 @@ checkIO arch = do
   pathResult <- checkPaths arch
   pure (pureResult <> pathResult)
 
--- | W003: @path のファイル不在チェック
+-- | W004: @path のファイル不在チェック
 checkPaths :: Architecture -> IO CheckResult
 checkPaths arch = fmap mconcat $ sequence
   [ do exists <- doesFileExist fp
        pure $ if exists then mempty
               else CheckResult []
-                [ Diagnostic Warning "W003"
+                [ Diagnostic Warning "W004"
                     ("file " <> T.pack fp <> " does not exist")
                     (declName d) (Just (T.pack fp))
                 ]

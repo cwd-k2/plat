@@ -26,6 +26,7 @@ import Data.Maybe (mapMaybe)
 import qualified Data.Set as Set
 
 import Plat.Core.Types
+import Plat.Core.Relation (typeRefs)
 import Plat.Check.Class
 
 ----------------------------------------------------------------------
@@ -107,24 +108,32 @@ instance PlatRule LayerCycleRule where
         ]
     | otherwise = []
 
--- | 簡易トポロジカルソートによる循環検出
+-- | DFS による循環検出
 hasCycle :: [LayerDef] -> Bool
-hasCycle layers = go Set.empty Set.empty (map layerName layers)
+hasCycle layers = any (\n -> not (n `Set.member` done) && hasCycleFrom n) names
   where
     depMap = Map.fromList [(layerName l, layerDeps l) | l <- layers]
-    go _ _ [] = False
-    go visited inStack (n:ns)
-      | n `Set.member` visited = go visited inStack ns
-      | otherwise = dfs visited inStack n || go visited inStack ns
-    dfs visited inStack n
-      | n `Set.member` inStack = True
-      | n `Set.member` visited = False
+    names  = map layerName layers
+
+    -- 全ノードを走査した後の visited 集合を事前計算せず、各ノードから DFS
+    hasCycleFrom start = go Set.empty start
+    go visiting n
+      | n `Set.member` visiting = True   -- back edge → cycle
+      | n `Set.member` done     = False  -- already fully explored
       | otherwise =
-          let inStack' = Set.insert n inStack
+          let visiting' = Set.insert n visiting
               deps = Map.findWithDefault [] n depMap
-          in  any (dfs visited inStack') deps
-              -- n is now fully visited after exploring deps
-              -- (simplified: if any dep cycles, we report True)
+          in  any (go visiting') deps
+
+    -- 非循環なノードを事前収集（葉から確定）
+    done = converge Set.empty
+    converge prev =
+      let next = Set.fromList
+            [ n | n <- names
+            , all (\d -> d `Set.member` prev || d `notElem` names)
+                  (Map.findWithDefault [] n depMap)
+            ] `Set.union` prev
+      in if next == prev then prev else converge next
 
 ----------------------------------------------------------------------
 -- V003: needs に adapter 指定
@@ -315,7 +324,7 @@ instance PlatRule UndefinedTypeRule where
       reservedTypes :: [Text]
       reservedTypes = ["Error", "Id"]
 
--- | 宣言内の TypeExpr から TRef 名を収集（Inject 内は除外）
+-- | 宣言内の TypeExpr から TRef 名を収集。TExt は外部型として除外される。
 collectTypeRefs :: Declaration -> [Text]
 collectTypeRefs d = concatMap itemRefs (declBody d)
   where
@@ -323,14 +332,8 @@ collectTypeRefs d = concatMap itemRefs (declBody d)
     itemRefs (Op _ ins outs) = concatMap (typeRefs . paramType) (ins ++ outs)
     itemRefs (Input _ ty)    = typeRefs ty
     itemRefs (Output _ ty)   = typeRefs ty
-    itemRefs (Inject _ _)    = []  -- ext types are excluded
+    itemRefs (Inject _ ty)   = typeRefs ty  -- TExt は typeRefs で除外される
     itemRefs _               = []
-
-    typeRefs :: TypeExpr -> [Text]
-    typeRefs (TBuiltin _)     = []
-    typeRefs (TRef name)      = [name]
-    typeRefs (TGeneric _ args) = concatMap typeRefs args
-    typeRefs (TNullable t)    = typeRefs t
 
 ----------------------------------------------------------------------
 -- V009: 宣言名の一意性
@@ -370,3 +373,5 @@ instance PlatRule MultipleImplementsRule where
           (declName d) Nothing
       ]
     | otherwise = []
+
+-- W004 はファイル不在チェック。Plat.Check.checkPaths で直接生成される（IO が必要なため）

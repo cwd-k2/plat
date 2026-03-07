@@ -13,7 +13,7 @@ import Plat.Core
 import Plat.Check
 import Plat.Ext.DDD
 import Plat.Ext.CQRS
-import Plat.Ext.CleanArch (cleanArchLayers, enterprise, framework, entity, port, impl)
+import Plat.Ext.CleanArch (cleanArchLayers, cleanArchRules, enterprise, framework, entity, port, impl, wire)
 import qualified Plat.Ext.CleanArch as CA
 import Plat.Ext.Http
 import Plat.Ext.DBC
@@ -144,6 +144,25 @@ testCleanArch = do
         declare caImpl
       r = check caArch
   T.putStrLn (prettyCheck r)
+
+  -- CA-V001: impl without implements
+  let badImpl = adapter "BareImpl" framework $ do
+        tagAs CA.caImpl
+        inject "db" (ext "*sql.DB")
+      badArch = arch "ca-bad" $ do
+        useLayers cleanArchLayers
+        declare badImpl
+      r2 = checkWith (coreRules ++ cleanArchRules) badArch
+  T.putStrLn (prettyCheck r2)
+
+  -- CA-W001: wire with no bindings
+  let emptyWire = wire "EmptyWire" $ pure ()
+      wireArch = arch "ca-wire" $ do
+        useLayers cleanArchLayers
+        declare emptyWire
+      r3 = checkWith (coreRules ++ cleanArchRules) wireArch
+  T.putStrLn (prettyCheck r3)
+
   runTests
     [ ("cleanArchLayers has 4",     length cleanArchLayers == 4)
     , ("entity is Model",           declKind (decl caEntity) == Model)
@@ -152,11 +171,24 @@ testCleanArch = do
     , ("impl implements port",
         findImplements (declBody (decl caImpl)) == Just "ProductRepository")
     , ("no violations",             not (hasViolations r))
+    , ("CA-V001: impl without implements",
+        any (\d -> dCode d == "CA-V001") (violations r2))
+    , ("CA-W001: wire no bindings",
+        any (\d -> dCode d == "CA-W001") (warnings r3))
     ]
 
 testHttp :: TestResult
 testHttp = do
   let ctrlDecl = decl httpCtrl
+
+  -- HTTP-W001: controller with no routes
+  let emptyCtrl = controller "EmptyController" infra $ pure ()
+      httpArch = arch "http-test" $ do
+        useLayers [core, application, interface, infra]
+        declare emptyCtrl
+      r = checkWith (coreRules ++ httpRules) httpArch
+  T.putStrLn (prettyCheck r)
+
   runTests
     [ ("controller is Adapter",     declKind ctrlDecl == Adapter)
     , ("controller has meta",
@@ -169,6 +201,8 @@ testHttp = do
         lookupMeta "plat-http:route:GetOrder" ctrlDecl == Just "GET /orders/{id}")
     , ("route injects operations",
         length [() | Inject _ _ <- declBody ctrlDecl] == 3)
+    , ("HTTP-W001: controller no routes",
+        any (\d -> dCode d == "HTTP-W001") (warnings r))
     ]
 
 testDBC :: TestResult
@@ -255,6 +289,29 @@ testEvents = do
       opD   = decl placeOrderWithEvent
       hdlD  = decl onOrderPlaced
       aggD  = decl orderAgg
+
+  -- EVT-V001: emit unknown event
+  let badEmitOp = operation "BadEmit" application $ do
+        output "err" error_
+        needs orderRepo
+        emit orderPlaced  -- orderPlaced not in arch
+      evtBadArch = arch "evt-bad" $ do
+        useLayers [core, application, interface]
+        declare order
+        declare orderRepo
+        declare badEmitOp
+      r1 = checkWith (coreRules ++ eventsRules) evtBadArch
+  T.putStrLn (prettyCheck r1)
+
+  -- EVT-W001: handler targets unknown event
+  let badHandler = on_ "HandleMissing" orderPlaced application $ do
+        output "err" error_
+      evtBadArch2 = arch "evt-bad2" $ do
+        useLayers [core, application]
+        declare badHandler  -- orderPlaced not declared
+      r2 = checkWith (coreRules ++ eventsRules) evtBadArch2
+  T.putStrLn (prettyCheck r2)
+
   runTests
     [ ("event is Model",             declKind evtD == Model)
     , ("event has meta",             lookupMeta "plat-events:kind" evtD == Just "event")
@@ -270,6 +327,10 @@ testEvents = do
         lookupMeta "plat-events:apply:OrderPlaced" aggD == Just "OrderPlaced")
     , ("apply OrderShipped",
         lookupMeta "plat-events:apply:OrderShipped" aggD == Just "OrderShipped")
+    , ("EVT-V001: emit unknown event",
+        any (\d -> dCode d == "EVT-V001") (violations r1))
+    , ("EVT-W001: handler targets unknown event",
+        any (\d -> dCode d == "EVT-W001") (warnings r2))
     ]
 
 testModules :: TestResult
@@ -285,6 +346,24 @@ testModules = do
 
       domD = decl orderDomain
       payD = decl paymentDomain
+
+  -- MOD-V001: expose unknown declaration
+  let badDomain = domain "BadDomain" $ do
+        expose order  -- order not in arch
+      modBadArch = arch "mod-bad" $ do
+        declare badDomain
+      r1 = checkWith (coreRules ++ modulesRules) modBadArch
+
+  -- MOD-V002: import from unknown module
+  let nonExistentModule = domain "Phantom" $ pure ()
+      badImport = domain "BadImport" $ do
+        import_ nonExistentModule order
+        expose paymentGateway
+      modBadArch2 = arch "mod-bad2" $ do
+        declare badImport
+        declare paymentGateway
+      r2 = checkWith (coreRules ++ modulesRules) modBadArch2
+
   runTests
     [ ("domain is Compose",          declKind domD == Compose)
     , ("domain has meta",
@@ -299,4 +378,8 @@ testModules = do
         lookupMeta "plat-modules:import:Order" payD == Just "OrderDomain")
     , ("payment exposes gateway",
         lookupMeta "plat-modules:expose:PaymentGateway" payD == Just "PaymentGateway")
+    , ("MOD-V001: expose unknown decl",
+        any (\d -> dCode d == "MOD-V001") (violations r1))
+    , ("MOD-V002: import unknown module",
+        any (\d -> dCode d == "MOD-V002") (violations r2))
     ]

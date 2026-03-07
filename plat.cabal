@@ -17,6 +17,7 @@ library
     Plat.Core.Meta
     Plat.Check
     Plat.Check.Class
+    Plat.Check.Presets
     Plat.Check.Rules
     Plat.Generate.Mermaid
     Plat.Generate.Markdown
