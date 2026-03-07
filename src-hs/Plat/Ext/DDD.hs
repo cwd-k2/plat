@@ -29,6 +29,7 @@ import Plat.Check.Class
 ddd :: ExtId
 ddd = extId "ddd"
 
+-- | DDD メタタグ: value object / aggregate root / enum
 dddValue, dddAggregate, dddEnum :: MetaTag
 dddValue     = kind ddd "value"
 dddAggregate = kind ddd "aggregate"
@@ -58,12 +59,15 @@ invariant name expr = annotate ddd "invariant" name expr
 
 -- Queries
 
+-- | 宣言が value object かどうか判定する
 isValue :: Declaration -> Bool
 isValue d = declKind d == Model && isTagged dddValue d
 
+-- | 宣言が aggregate root かどうか判定する
 isAggregate :: Declaration -> Bool
 isAggregate d = declKind d == Model && isTagged dddAggregate d
 
+-- | 宣言が enum かどうか判定する
 isEnum :: Declaration -> Bool
 isEnum d = declKind d == Model && isTagged dddEnum d
 
@@ -99,6 +103,7 @@ instance PlatRule AggregateIdRule where
       ]
     | otherwise = []
 
+-- | DDD 拡張の検証ルール一覧 (DDD-V001, DDD-V002)
 dddRules :: [SomeRule]
 dddRules =
   [ SomeRule ValueNoIdRule

@@ -53,5 +53,6 @@ hasContract :: Declaration -> Bool
 hasContract d = not (null (annotations dbc "pre" d))
              || not (null (annotations dbc "post" d))
 
+-- | DBC 拡張の検証ルール一覧 (DBC-W001)
 dbcRules :: [SomeRule]
 dbcRules = [SomeRule ContractNeedsRule]

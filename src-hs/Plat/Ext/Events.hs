@@ -22,6 +22,7 @@ import Plat.Check.Class
 events :: ExtId
 events = extId "events"
 
+-- | Events メタタグ: event / handler
 evtEvent, evtHandler :: MetaTag
 evtEvent   = kind events "event"
 evtHandler = kind events "handler"
@@ -47,5 +48,6 @@ on_ name evt ly body = operation name ly $ do
 apply_ :: Decl 'Model -> DeclWriter 'Model ()
 apply_ = refer events "apply"
 
+-- | Events 拡張の検証ルール一覧 (現在は空)
 eventsRules :: [SomeRule]
 eventsRules = []

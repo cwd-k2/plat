@@ -23,6 +23,7 @@ import Plat.Check.Class
 cqrs :: ExtId
 cqrs = extId "cqrs"
 
+-- | CQRS メタタグ: command / query
 cqrsCommand, cqrsQuery :: MetaTag
 cqrsCommand = kind cqrs "command"
 cqrsQuery   = kind cqrs "query"
@@ -41,9 +42,11 @@ query name ly body = operation name ly $ do
 
 -- Queries
 
+-- | 宣言が command かどうか判定する
 isCommand :: Declaration -> Bool
 isCommand d = declKind d == Operation && isTagged cqrsCommand d
 
+-- | 宣言が query かどうか判定する
 isQuery :: Declaration -> Bool
 isQuery d = declKind d == Operation && isTagged cqrsQuery d
 
@@ -51,5 +54,6 @@ isQuery d = declKind d == Operation && isTagged cqrsQuery d
 -- CQRS Rules
 ----------------------------------------------------------------------
 
+-- | CQRS 拡張の検証ルール一覧 (現在は空)
 cqrsRules :: [SomeRule]
 cqrsRules = []

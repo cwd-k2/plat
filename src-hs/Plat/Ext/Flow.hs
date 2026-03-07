@@ -22,6 +22,7 @@ import Plat.Check.Class
 flow :: ExtId
 flow = extId "flow"
 
+-- | Flow メタタグ: step / policy / projection
 flowStep, flowPolicy, flowProjection :: MetaTag
 flowStep       = kind flow "step"
 flowPolicy     = kind flow "policy"
@@ -43,5 +44,6 @@ policy name ly body = model name ly $ do
 guard_ :: Text -> Text -> DeclWriter 'Operation ()
 guard_ name condition = annotate flow "guard" name condition
 
+-- | Flow 拡張の検証ルール一覧 (現在は空)
 flowRules :: [SomeRule]
 flowRules = []

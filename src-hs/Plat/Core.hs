@@ -1,4 +1,20 @@
--- | Plat Core eDSL — 公開 API の再エクスポート
+-- | Plat Core eDSL — アーキテクチャ記述の公開 API。
+--
+-- このモジュールをインポートすれば、レイヤー定義・型式・宣言構築・メタDSL の
+-- すべてが利用可能になる。通常はこのモジュールのみをインポートする。
+--
+-- @
+-- import Plat.Core
+--
+-- enterprise, interface :: LayerDef
+-- enterprise = layer "enterprise"
+-- interface  = layer "interface" \`depends\` [enterprise]
+--
+-- order :: Decl 'Model
+-- order = model "Order" enterprise $ do
+--   field "id"    string
+--   field "total" int
+-- @
 module Plat.Core
   ( -- * Types (AST)
     DeclKind (..)

@@ -1,4 +1,4 @@
--- | Go code generation: skeleton, contract tests, compile-time verification.
+-- | Go コード生成: スケルトン、コントラクトテスト、コンパイル時検証。
 module Plat.Target.Go
   ( GoConfig (..)
   , defaultConfig
@@ -19,12 +19,14 @@ import Plat.Core.Types
 -- Config
 ----------------------------------------------------------------------
 
+-- | Go コード生成の設定。モジュールパス、型マッピング、レイヤー対応を保持する。
 data GoConfig = GoConfig
-  { goModule   :: Text               -- ^ Go module path (e.g. "github.com/example/svc")
-  , goTypeMap  :: Map.Map Text Text   -- ^ Custom type overrides: "UUID" -> "string"
-  , goLayerPkg :: Map.Map Text Text   -- ^ Layer → package name overrides
+  { goModule   :: Text               -- ^ Go モジュールパス (例: @"github.com\/example\/svc"@)
+  , goTypeMap  :: Map.Map Text Text   -- ^ 組み込み型 → Go 型名の上書きマッピング
+  , goLayerPkg :: Map.Map Text Text   -- ^ レイヤー名 → パッケージ名の上書きマッピング
   }
 
+-- | デフォルト設定を生成する。モジュールパスを指定し、型マッピングは @Error -> error@ のみ。
 defaultConfig :: Text -> GoConfig
 defaultConfig modPath = GoConfig
   { goModule   = modPath
@@ -86,6 +88,8 @@ exportedName t = case T.uncons t of
 -- Skeleton generation
 ----------------------------------------------------------------------
 
+-- | アーキテクチャからソースファイルのスケルトンを生成する。
+-- Model は struct、Boundary は interface、Operation は struct + Execute メソッド、Adapter は struct として出力。
 skeleton :: GoConfig -> Architecture -> [(FilePath, Text)]
 skeleton cfg arch = concatMap (skelDecl cfg arch) (archDecls arch)
 
@@ -248,6 +252,8 @@ skelAdapter cfg arch d =
 -- Contract test generation
 ----------------------------------------------------------------------
 
+-- | Boundary ごとにコントラクトテストを生成する。
+-- 各 adapter が boundary の全 operation を満たすことを検証するテストスケルトン。
 contract :: GoConfig -> Architecture -> [(FilePath, Text)]
 contract cfg arch =
   let boundaries = [d | d <- archDecls arch, declKind d == Boundary]
@@ -336,6 +342,8 @@ callExpr opName args nonErr hasError =
 -- Compile-time verification
 ----------------------------------------------------------------------
 
+-- | コンパイル時のアーキテクチャ適合検証コードを生成する。
+-- @var _ BoundaryType = (*AdapterType)(nil)@ 形式のインターフェース実装チェック。
 verify :: GoConfig -> Architecture -> [(FilePath, Text)]
 verify cfg arch =
   let adapters = [d | d <- archDecls arch, declKind d == Adapter]

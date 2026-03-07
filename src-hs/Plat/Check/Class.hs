@@ -1,3 +1,7 @@
+-- | 検証ルールの型クラスと診断結果の定義。
+--
+-- 'PlatRule' 型クラスでルールを定義し、'SomeRule' 存在型で合成する。
+-- 検証結果は 'CheckResult' に集約される。
 module Plat.Check.Class
   ( -- * Rule type class
     PlatRule (..)
@@ -21,17 +25,17 @@ data Severity = Error | Warning
 
 -- | 診断結果
 data Diagnostic = Diagnostic
-  { dSeverity :: Severity
-  , dCode     :: Text
-  , dMessage  :: Text
-  , dSource   :: Text
-  , dTarget   :: Maybe Text
+  { dSeverity :: Severity   -- ^ 重大度 ('Error' または 'Warning')
+  , dCode     :: Text       -- ^ ルールコード (例: @"V001"@)
+  , dMessage  :: Text       -- ^ 人間向けのメッセージ
+  , dSource   :: Text       -- ^ 違反元の宣言名
+  , dTarget   :: Maybe Text -- ^ 違反先の宣言名 (存在する場合)
   } deriving stock (Show, Eq)
 
--- | 検証結果
+-- | 検証結果。'Monoid' で複数ルールの結果を合成可能。
 data CheckResult = CheckResult
-  { violations :: [Diagnostic]
-  , warnings   :: [Diagnostic]
+  { violations :: [Diagnostic] -- ^ 'Error' レベルの診断
+  , warnings   :: [Diagnostic] -- ^ 'Warning' レベルの診断
   } deriving stock (Show, Eq)
 
 instance Semigroup CheckResult where
@@ -40,21 +44,27 @@ instance Semigroup CheckResult where
 instance Monoid CheckResult where
   mempty = CheckResult [] []
 
+-- | 'Error' レベルの診断が存在するか
 hasViolations :: CheckResult -> Bool
 hasViolations = not . null . violations
 
+-- | 'Warning' レベルの診断が存在するか
 hasWarnings :: CheckResult -> Bool
 hasWarnings = not . null . warnings
 
--- | 検証ルールの型クラス
+-- | 検証ルールの型クラス。
+-- 宣言単位の検査 ('checkDecl') とアーキテクチャ全体の検査 ('checkArch') を提供する。
 class PlatRule a where
+  -- | ルールコード (例: @"V001"@)
   ruleCode  :: a -> Text
+  -- | 宣言単位の検査。デフォルトは空リスト。
   checkDecl :: a -> Architecture -> Declaration -> [Diagnostic]
   checkDecl _ _ _ = []
+  -- | アーキテクチャ全体の検査。デフォルトは空リスト。
   checkArch :: a -> Architecture -> [Diagnostic]
   checkArch _ _ = []
 
--- | 存在型ラッパー
+-- | 'PlatRule' の存在型ラッパー。異なるルールをリストに格納可能にする。
 data SomeRule where
   SomeRule :: PlatRule a => a -> SomeRule
 

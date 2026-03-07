@@ -1,4 +1,4 @@
--- | Rust code generation: skeleton, contract tests, compile-time verification.
+-- | Rust コード生成: スケルトン、コントラクトテスト、コンパイル時検証。
 module Plat.Target.Rust
   ( RsConfig (..)
   , defaultConfig
@@ -19,11 +19,13 @@ import Plat.Core.Types
 -- Config
 ----------------------------------------------------------------------
 
+-- | Rust コード生成の設定。型マッピングとレイヤー対応を保持する。
 data RsConfig = RsConfig
-  { rsTypeMap  :: Map.Map Text Text   -- ^ Custom type overrides
-  , rsLayerMod :: Map.Map Text Text   -- ^ Layer → module name overrides
+  { rsTypeMap  :: Map.Map Text Text   -- ^ 組み込み型 → Rust 型名の上書きマッピング
+  , rsLayerMod :: Map.Map Text Text   -- ^ レイヤー名 → モジュール名の上書きマッピング
   }
 
+-- | デフォルト設定。型マッピングは @Error -> String@ のみ。
 defaultConfig :: RsConfig
 defaultConfig = RsConfig
   { rsTypeMap  = Map.fromList [("Error", "String")]
@@ -79,6 +81,8 @@ snakeName t = case T.uncons (toSnake t) of
 -- Skeleton generation
 ----------------------------------------------------------------------
 
+-- | アーキテクチャからソースファイルのスケルトンを生成する。
+-- Model は struct、Boundary は trait、Operation は関数、Adapter は struct + trait impl として出力。
 skeleton :: RsConfig -> Architecture -> [(FilePath, Text)]
 skeleton cfg arch =
   let decls = archDecls arch
@@ -239,6 +243,8 @@ implMethodStub cfg (name, ins, outs) =
 -- Contract tests
 ----------------------------------------------------------------------
 
+-- | Boundary ごとにコントラクトテストを生成する。
+-- trait を実装する任意の型が満たすべきテストスケルトンを出力。
 contract :: RsConfig -> Architecture -> [(FilePath, Text)]
 contract cfg arch =
   let boundaries = [d | d <- archDecls arch, declKind d == Boundary]
@@ -292,6 +298,8 @@ zeroValue _   _                    = "Default::default()"
 -- Compile-time verification
 ----------------------------------------------------------------------
 
+-- | コンパイル時のアーキテクチャ適合検証コードを生成する。
+-- trait bound を用いて adapter が boundary を実装していることを静的に検証する。
 verify :: RsConfig -> Architecture -> [(FilePath, Text)]
 verify cfg arch =
   let adapters = [(d, bnd) | d <- archDecls arch, declKind d == Adapter,

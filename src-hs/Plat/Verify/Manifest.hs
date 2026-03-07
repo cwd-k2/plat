@@ -23,50 +23,57 @@ import Plat.Core.Types
 -- Manifest types
 ----------------------------------------------------------------------
 
+-- | アーキテクチャ全体のマニフェスト。JSON にレンダリングして外部ツールに渡す。
 data Manifest = Manifest
-  { mName     :: Text
-  , mLayers   :: [ManifestLayer]
-  , mDecls    :: [ManifestDecl]
-  , mBindings :: [ManifestBinding]
+  { mName     :: Text              -- ^ アーキテクチャ名
+  , mLayers   :: [ManifestLayer]   -- ^ レイヤー定義一覧
+  , mDecls    :: [ManifestDecl]    -- ^ 宣言一覧
+  , mBindings :: [ManifestBinding] -- ^ boundary-adapter のバインディング一覧
   } deriving stock (Show, Eq)
 
+-- | レイヤー定義。名前と依存先レイヤーのリスト。
 data ManifestLayer = ManifestLayer
-  { mlName :: Text
-  , mlDeps :: [Text]
+  { mlName :: Text   -- ^ レイヤー名
+  , mlDeps :: [Text] -- ^ 依存先レイヤー名
   } deriving stock (Show, Eq)
 
+-- | 宣言のマニフェスト表現。言語非依存な中間形式。
 data ManifestDecl = ManifestDecl
-  { mdName       :: Text
-  , mdKind       :: Text
-  , mdLayer      :: Maybe Text
-  , mdFields     :: [ManifestField]
-  , mdOps        :: [ManifestOp]
-  , mdNeeds      :: [Text]
-  , mdImplements :: Maybe Text
-  , mdInjects    :: [ManifestField]
-  , mdEntries    :: [Text]
+  { mdName       :: Text            -- ^ 宣言名
+  , mdKind       :: Text            -- ^ 宣言種別 (@"model"@, @"boundary"@ 等)
+  , mdLayer      :: Maybe Text      -- ^ 所属レイヤー
+  , mdFields     :: [ManifestField] -- ^ フィールド一覧
+  , mdOps        :: [ManifestOp]    -- ^ オペレーション一覧
+  , mdNeeds      :: [Text]          -- ^ 依存する boundary 名
+  , mdImplements :: Maybe Text      -- ^ 実装対象の boundary 名
+  , mdInjects    :: [ManifestField] -- ^ 注入される依存 (adapter)
+  , mdEntries    :: [Text]          -- ^ エントリポイント名 (compose)
   } deriving stock (Show, Eq)
 
+-- | フィールドの名前と型。
 data ManifestField = ManifestField
-  { mfName :: Text
-  , mfType :: Text
+  { mfName :: Text -- ^ フィールド名
+  , mfType :: Text -- ^ 型 (言語非依存テキスト)
   } deriving stock (Show, Eq)
 
+-- | オペレーション (入力パラメータと出力パラメータ)。
 data ManifestOp = ManifestOp
-  { moName    :: Text
-  , moInputs  :: [ManifestField]
-  , moOutputs :: [ManifestField]
+  { moName    :: Text            -- ^ オペレーション名
+  , moInputs  :: [ManifestField] -- ^ 入力パラメータ
+  , moOutputs :: [ManifestField] -- ^ 出力パラメータ
   } deriving stock (Show, Eq)
 
+-- | boundary と adapter のバインディング。
 data ManifestBinding = ManifestBinding
-  { mbBoundary :: Text
-  , mbAdapter  :: Text
+  { mbBoundary :: Text -- ^ boundary 名
+  , mbAdapter  :: Text -- ^ adapter 名
   } deriving stock (Show, Eq)
 
 ----------------------------------------------------------------------
 -- Build manifest
 ----------------------------------------------------------------------
 
+-- | 'Architecture' から 'Manifest' を構築する。
 manifest :: Architecture -> Manifest
 manifest arch = Manifest
   { mName     = archName arch
@@ -127,6 +134,7 @@ renderTE (TNullable t) = renderTE t <> "?"
 -- Render manifest as JSON
 ----------------------------------------------------------------------
 
+-- | 'Manifest' を JSON テキストにレンダリングする。
 renderManifest :: Manifest -> Text
 renderManifest m = T.unlines
   [ "{"

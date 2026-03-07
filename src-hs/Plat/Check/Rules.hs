@@ -1,3 +1,7 @@
+-- | コア検証ルール群 (V001-V008, W001-W002)。
+--
+-- 'coreRules' が全ルールを含む標準セット。
+-- 個別ルールを選択的に組み合わせることも可能。
 module Plat.Check.Rules
   ( coreRules
   -- * Individual rules (for selective composition)
@@ -26,6 +30,7 @@ import Plat.Check.Class
 -- coreRules
 ----------------------------------------------------------------------
 
+-- | 標準検証ルールセット。V001-V008 の違反ルールと W001-W002 の警告ルールを含む。
 coreRules :: [SomeRule]
 coreRules =
   [ SomeRule LayerDepRule
@@ -44,6 +49,7 @@ coreRules =
 -- V001: レイヤー依存違反
 ----------------------------------------------------------------------
 
+-- | V001: レイヤー依存違反の検出。許可されていないレイヤーへの参照を検出する。
 data LayerDepRule = LayerDepRule
 instance PlatRule LayerDepRule where
   ruleCode _ = "V001"
@@ -85,6 +91,7 @@ referencedLayers d arch = mapMaybe lookupLayer refNames
 -- V002: レイヤー循環依存
 ----------------------------------------------------------------------
 
+-- | V002: レイヤー依存グラフの循環検出。
 data LayerCycleRule = LayerCycleRule
 instance PlatRule LayerCycleRule where
   ruleCode _ = "V002"
@@ -119,6 +126,7 @@ hasCycle layers = go Set.empty Set.empty (map layerName layers)
 -- V003: needs に adapter 指定
 ----------------------------------------------------------------------
 
+-- | V003: @needs@ の対象が boundary でない場合の検出。
 data NeedsKindRule = NeedsKindRule
 instance PlatRule NeedsKindRule where
   ruleCode _ = "V003"
@@ -136,6 +144,7 @@ instance PlatRule NeedsKindRule where
 -- V004: boundary に adapter 型
 ----------------------------------------------------------------------
 
+-- | V004: boundary に adapter 専用アイテム (@Inject@, @Implements@) が含まれる場合の検出。
 data BoundaryKindRule = BoundaryKindRule
 instance PlatRule BoundaryKindRule where
   ruleCode _ = "V004"
@@ -156,6 +165,7 @@ instance PlatRule BoundaryKindRule where
 -- V005: compose 外での bind
 ----------------------------------------------------------------------
 
+-- | V005: compose 以外の宣言で @bind@ が使用された場合の検出。
 data BindScopeRule = BindScopeRule
 instance PlatRule BindScopeRule where
   ruleCode _ = "V005"
@@ -175,6 +185,7 @@ instance PlatRule BindScopeRule where
 -- V006: パッケージキーワード衝突
 ----------------------------------------------------------------------
 
+-- | V006: 宣言名が予約キーワードと衝突する場合の検出。
 data KeywordCollisionRule = KeywordCollisionRule
 instance PlatRule KeywordCollisionRule where
   ruleCode _ = "V006"
@@ -195,6 +206,8 @@ instance PlatRule KeywordCollisionRule where
 -- V007: adapter が boundary の op を未宣言
 ----------------------------------------------------------------------
 
+-- | V007: adapter が boundary の operation を網羅していない場合の検出。
+-- adapter に Op が無い場合は暗黙的に全カバーとみなす。
 data AdapterCoverageRule = AdapterCoverageRule
 instance PlatRule AdapterCoverageRule where
   ruleCode _ = "V007"
@@ -221,6 +234,7 @@ instance PlatRule AdapterCoverageRule where
 -- V008: bind の左辺が boundary、右辺が adapter であるか
 ----------------------------------------------------------------------
 
+-- | V008: @bind@ の左辺が boundary、右辺が adapter であることを検証する。
 data BindTargetRule = BindTargetRule
 instance PlatRule BindTargetRule where
   ruleCode _ = "V008"
@@ -247,6 +261,7 @@ instance PlatRule BindTargetRule where
 -- W001: 未解決の boundary
 ----------------------------------------------------------------------
 
+-- | W001: adapter による実装が存在しない boundary を警告する。
 data UnresolvedBoundaryRule = UnresolvedBoundaryRule
 instance PlatRule UnresolvedBoundaryRule where
   ruleCode _ = "W001"
@@ -270,6 +285,8 @@ instance PlatRule UnresolvedBoundaryRule where
 -- W002: 未定義型名
 ----------------------------------------------------------------------
 
+-- | W002: 宣言内で参照されている型名が未定義の場合に警告する。
+-- @Inject@ 内の型参照は外部型として除外される。
 data UndefinedTypeRule = UndefinedTypeRule
 instance PlatRule UndefinedTypeRule where
   ruleCode _ = "W002"

@@ -29,6 +29,7 @@ renderMethod PATCH  = "PATCH"
 http :: ExtId
 http = extId "http"
 
+-- | HTTP コントローラーのメタタグ
 httpController :: MetaTag
 httpController = kind http "controller"
 

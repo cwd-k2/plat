@@ -20,6 +20,7 @@ import Plat.Check.Class
 modules :: ExtId
 modules = extId "modules"
 
+-- | ドメインモジュールのメタタグ
 modulesDomain :: MetaTag
 modulesDomain = kind modules "domain"
 
@@ -40,5 +41,6 @@ import_ :: Decl 'Compose -> Decl k -> DeclWriter 'Compose ()
 import_ src target =
   annotate modules "import" (declName (unDecl target)) (declName (unDecl src))
 
+-- | Modules 拡張の検証ルール一覧 (現在は空)
 modulesRules :: [SomeRule]
 modulesRules = []

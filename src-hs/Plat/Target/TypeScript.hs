@@ -1,4 +1,4 @@
--- | TypeScript code generation: skeleton, contract tests, compile-time verification.
+-- | TypeScript コード生成: スケルトン、コントラクトテスト、コンパイル時検証。
 module Plat.Target.TypeScript
   ( TsConfig (..)
   , defaultConfig
@@ -19,11 +19,13 @@ import Plat.Core.Types
 -- Config
 ----------------------------------------------------------------------
 
+-- | TypeScript コード生成の設定。型マッピングとレイヤー対応を保持する。
 data TsConfig = TsConfig
-  { tsTypeMap  :: Map.Map Text Text   -- ^ Custom type overrides
-  , tsLayerDir :: Map.Map Text Text   -- ^ Layer → directory name overrides
+  { tsTypeMap  :: Map.Map Text Text   -- ^ 組み込み型 → TypeScript 型名の上書きマッピング
+  , tsLayerDir :: Map.Map Text Text   -- ^ レイヤー名 → ディレクトリ名の上書きマッピング
   }
 
+-- | デフォルト設定。型マッピングは @Error -> Error@ のみ。
 defaultConfig :: TsConfig
 defaultConfig = TsConfig
   { tsTypeMap  = Map.fromList [("Error", "Error")]
@@ -84,6 +86,8 @@ camel t = case T.uncons t of
 -- Skeleton generation
 ----------------------------------------------------------------------
 
+-- | アーキテクチャからソースファイルのスケルトンを生成する。
+-- Model は interface、Boundary は interface、Operation は class + execute メソッド、Adapter は class として出力。
 skeleton :: TsConfig -> Architecture -> [(FilePath, Text)]
 skeleton cfg arch = concatMap (skelDecl cfg arch) (archDecls arch)
 
@@ -223,6 +227,8 @@ adapterMethodStub cfg (name, ins, outs) =
 -- Contract tests
 ----------------------------------------------------------------------
 
+-- | Boundary ごとにコントラクトテストを生成する。
+-- テストフレームワーク非依存の @describe\/it@ スタイルで出力。
 contract :: TsConfig -> Architecture -> [(FilePath, Text)]
 contract cfg arch =
   let boundaries = [d | d <- archDecls arch, declKind d == Boundary]
@@ -268,6 +274,8 @@ contractOp _cfg _ifaceName (opName, _ins, _outs) =
 -- Compile-time verification
 ----------------------------------------------------------------------
 
+-- | コンパイル時のアーキテクチャ適合検証コードを生成する。
+-- @tsc --noEmit@ で adapter が boundary を満たすことを型レベルで検証する。
 verify :: TsConfig -> Architecture -> [(FilePath, Text)]
 verify cfg arch =
   let adapters = [(d, bnd) | d <- archDecls arch, declKind d == Adapter,

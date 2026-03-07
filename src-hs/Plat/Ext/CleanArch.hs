@@ -33,6 +33,7 @@ import Plat.Core.Meta
 -- Preset layers
 ----------------------------------------------------------------------
 
+-- | Clean Architecture の4レイヤー定義 (enterprise → interface → application → framework)
 enterprise, application, interface, framework :: LayerDef
 
 enterprise  = layer "enterprise"
@@ -40,6 +41,7 @@ interface   = layer "interface"   `depends` [enterprise]
 application = layer "application" `depends` [enterprise, interface]
 framework   = layer "framework"   `depends` [enterprise, interface, application]
 
+-- | 全レイヤーのリスト
 cleanArchLayers :: [LayerDef]
 cleanArchLayers = [enterprise, application, interface, framework]
 
@@ -51,6 +53,7 @@ cleanArchLayers = [enterprise, application, interface, framework]
 cleanArch :: ExtId
 cleanArch = extId "cleanarch"
 
+-- | CleanArch メタタグ: entity / usecase / port / impl / wire
 caEntity, caUsecase, caPort, caImpl, caWire :: MetaTag
 caEntity  = kind cleanArch "entity"
 caUsecase = kind cleanArch "usecase"
