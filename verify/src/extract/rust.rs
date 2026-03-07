@@ -21,7 +21,7 @@ pub fn extract(
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
-        .filter(|e| !is_test_file(e.path()))
+        .filter(|e| !is_test_file(e.path(), root))
     {
         let path = entry.path().to_path_buf();
         let source = std::fs::read_to_string(&path)?;
@@ -47,9 +47,10 @@ pub fn extract(
     Ok(all_facts)
 }
 
-fn is_test_file(path: &Path) -> bool {
-    // Skip files under a `tests/` directory
-    path.components().any(|c| c.as_os_str() == "tests")
+fn is_test_file(path: &Path, root: &Path) -> bool {
+    // Skip files under a `tests/` directory (relative to source root)
+    let rel = path.strip_prefix(root).unwrap_or(path);
+    rel.components().any(|c| c.as_os_str() == "tests")
 }
 
 /// Extract `struct_item` declarations from top-level or within modules.
@@ -350,15 +351,22 @@ fn extract_params(node: tree_sitter::Node, source: &[u8]) -> Vec<(String, String
 }
 
 /// Check whether a `mod_item` has a `#[cfg(test)]` attribute.
+///
+/// In tree-sitter-rust, outer attributes like `#[cfg(test)]` appear as
+/// preceding siblings of the `mod_item`, not as children.
 fn is_cfg_test_module(node: tree_sitter::Node, source: &[u8]) -> bool {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == "attribute_item" {
-            let text = node_text(child, source);
+    let mut sibling = node.prev_sibling();
+    while let Some(s) = sibling {
+        if s.kind() == "attribute_item" {
+            let text = node_text(s, source);
             if text.contains("cfg") && text.contains("test") {
                 return true;
             }
+        } else {
+            // Stop at non-attribute nodes
+            break;
         }
+        sibling = s.prev_sibling();
     }
     false
 }
@@ -371,4 +379,295 @@ fn find_child_by_kind<'a>(node: tree_sitter::Node<'a>, kind: &str) -> Option<tre
 
 fn node_text<'a>(node: tree_sitter::Node, source: &'a [u8]) -> &'a str {
     node.utf8_text(source).unwrap_or("")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    use super::*;
+
+    /// Create a temporary directory with a unique name and write a single Rust file into it.
+    /// Returns the directory path.
+    fn setup_rs_file(name: &str, content: &str) -> PathBuf {
+        let dir = std::env::temp_dir()
+            .join("plat_verify_test_rs")
+            .join(name);
+        if dir.exists() {
+            fs::remove_dir_all(&dir).unwrap();
+        }
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("source.rs"), content).unwrap();
+        dir
+    }
+
+    fn empty_layer_dirs() -> HashMap<String, String> {
+        HashMap::new()
+    }
+
+    #[test]
+    fn test_struct_extraction() {
+        let src = r#"
+pub struct Order {
+    pub id: String,
+    pub total: f64,
+    pub status: OrderStatus,
+}
+"#;
+        let dir = setup_rs_file("struct_extraction", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1, "expected 1 file");
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1, "expected 1 type");
+
+        let order = &types[0];
+        assert_eq!(order.name, "Order");
+        assert_eq!(order.kind, TypeDefKind::Struct);
+        assert_eq!(order.fields.len(), 3);
+        assert_eq!(order.fields[0], ("id".to_string(), "String".to_string()));
+        assert_eq!(order.fields[1], ("total".to_string(), "f64".to_string()));
+        assert_eq!(
+            order.fields[2],
+            ("status".to_string(), "OrderStatus".to_string())
+        );
+        assert!(order.methods.is_empty());
+        assert!(order.implements.is_empty());
+    }
+
+    #[test]
+    fn test_trait_extraction() {
+        let src = r#"
+pub trait OrderRepository {
+    fn save(&self, order: Order) -> Result<(), Error>;
+    fn find_by_id(&self, id: String) -> Result<Order, Error>;
+}
+"#;
+        let dir = setup_rs_file("trait_extraction", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1);
+
+        let repo = &types[0];
+        assert_eq!(repo.name, "OrderRepository");
+        assert_eq!(repo.kind, TypeDefKind::Trait);
+        assert!(repo.fields.is_empty());
+        assert_eq!(repo.methods.len(), 2);
+
+        let save = &repo.methods[0];
+        assert_eq!(save.name, "save");
+        assert_eq!(save.params.len(), 1);
+        assert_eq!(
+            save.params[0],
+            ("order".to_string(), "Order".to_string())
+        );
+        assert_eq!(save.returns.len(), 1);
+
+        let find = &repo.methods[1];
+        assert_eq!(find.name, "find_by_id");
+        assert_eq!(find.params.len(), 1);
+        assert_eq!(find.params[0], ("id".to_string(), "String".to_string()));
+        assert_eq!(find.returns.len(), 1);
+    }
+
+    #[test]
+    fn test_impl_trait_for_struct() {
+        let src = r#"
+pub struct PostgresOrderRepo {
+    db: PgPool,
+}
+
+pub trait OrderRepository {
+    fn save(&self, order: Order) -> Result<(), Error>;
+    fn find_by_id(&self, id: String) -> Result<Order, Error>;
+}
+
+impl OrderRepository for PostgresOrderRepo {
+    fn save(&self, order: Order) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn find_by_id(&self, id: String) -> Result<Order, Error> {
+        todo!()
+    }
+}
+"#;
+        let dir = setup_rs_file("impl_trait_for_struct", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 2, "expected struct and trait");
+
+        let repo = types
+            .iter()
+            .find(|t| t.name == "PostgresOrderRepo")
+            .expect("PostgresOrderRepo not found");
+        assert_eq!(repo.kind, TypeDefKind::Struct);
+        assert_eq!(repo.fields.len(), 1);
+        assert_eq!(repo.fields[0], ("db".to_string(), "PgPool".to_string()));
+
+        // The impl block should record the implements relationship
+        assert_eq!(repo.implements.len(), 1);
+        assert_eq!(repo.implements[0], "OrderRepository");
+
+        // Methods from the impl block should be attached to the struct
+        assert_eq!(repo.methods.len(), 2);
+        assert_eq!(repo.methods[0].name, "save");
+        assert_eq!(repo.methods[1].name, "find_by_id");
+
+        // The trait itself should still have its own method signatures
+        let trait_def = types
+            .iter()
+            .find(|t| t.name == "OrderRepository")
+            .expect("OrderRepository not found");
+        assert_eq!(trait_def.kind, TypeDefKind::Trait);
+        assert_eq!(trait_def.methods.len(), 2);
+        assert!(trait_def.implements.is_empty());
+    }
+
+    #[test]
+    fn test_inherent_impl() {
+        let src = r#"
+pub struct User {
+    pub name: String,
+    pub email: String,
+}
+
+impl User {
+    pub fn new(name: String, email: String) -> Self {
+        Self { name, email }
+    }
+
+    pub fn display_name(&self) -> String {
+        self.name.clone()
+    }
+}
+"#;
+        let dir = setup_rs_file("inherent_impl", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 1);
+
+        let user = &types[0];
+        assert_eq!(user.name, "User");
+        assert_eq!(user.kind, TypeDefKind::Struct);
+        assert_eq!(user.fields.len(), 2);
+        assert_eq!(user.fields[0], ("name".to_string(), "String".to_string()));
+        assert_eq!(
+            user.fields[1],
+            ("email".to_string(), "String".to_string())
+        );
+
+        // Methods from inherent impl should be attached
+        assert_eq!(user.methods.len(), 2);
+        assert_eq!(user.methods[0].name, "new");
+        assert_eq!(user.methods[1].name, "display_name");
+
+        // No implements for inherent impl
+        assert!(user.implements.is_empty());
+    }
+
+    #[test]
+    fn test_cfg_test_skip() {
+        let src = r#"
+pub struct RealType {
+    pub value: i32,
+}
+
+#[cfg(test)]
+mod tests {
+    pub struct TestOnlyType {
+        pub dummy: String,
+    }
+
+    pub trait TestOnlyTrait {
+        fn test_method(&self);
+    }
+}
+"#;
+        let dir = setup_rs_file("cfg_test_skip", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+
+        // Only the real type should be extracted; test module contents are skipped
+        assert_eq!(types.len(), 1, "expected only RealType, test types should be skipped");
+        assert_eq!(types[0].name, "RealType");
+        assert_eq!(types[0].kind, TypeDefKind::Struct);
+    }
+
+    #[test]
+    fn test_multiple_types() {
+        let src = r#"
+pub struct User {
+    pub name: String,
+    pub email: String,
+}
+
+pub struct Account {
+    pub id: u64,
+    pub owner: String,
+}
+
+pub trait UserRepository {
+    fn create(&self, user: User) -> Result<(), Error>;
+    fn delete(&self, id: String) -> Result<(), Error>;
+}
+
+pub trait AccountService {
+    fn open(&self, owner: String) -> Result<Account, Error>;
+}
+"#;
+        let dir = setup_rs_file("multiple_types", src);
+        let facts = extract(&dir, &empty_layer_dirs()).unwrap();
+
+        assert_eq!(facts.len(), 1);
+        let types = &facts[0].types;
+        assert_eq!(types.len(), 4, "expected 2 structs and 2 traits");
+
+        let user = types.iter().find(|t| t.name == "User").expect("User not found");
+        let account = types.iter().find(|t| t.name == "Account").expect("Account not found");
+        let user_repo = types
+            .iter()
+            .find(|t| t.name == "UserRepository")
+            .expect("UserRepository not found");
+        let account_svc = types
+            .iter()
+            .find(|t| t.name == "AccountService")
+            .expect("AccountService not found");
+
+        assert_eq!(user.kind, TypeDefKind::Struct);
+        assert_eq!(user.fields.len(), 2);
+        assert_eq!(user.fields[0], ("name".to_string(), "String".to_string()));
+        assert_eq!(user.fields[1], ("email".to_string(), "String".to_string()));
+        assert!(user.methods.is_empty());
+
+        assert_eq!(account.kind, TypeDefKind::Struct);
+        assert_eq!(account.fields.len(), 2);
+        assert_eq!(account.fields[0], ("id".to_string(), "u64".to_string()));
+        assert_eq!(
+            account.fields[1],
+            ("owner".to_string(), "String".to_string())
+        );
+        assert!(account.methods.is_empty());
+
+        assert_eq!(user_repo.kind, TypeDefKind::Trait);
+        assert!(user_repo.fields.is_empty());
+        assert_eq!(user_repo.methods.len(), 2);
+        assert_eq!(user_repo.methods[0].name, "create");
+        assert_eq!(user_repo.methods[1].name, "delete");
+
+        assert_eq!(account_svc.kind, TypeDefKind::Trait);
+        assert!(account_svc.fields.is_empty());
+        assert_eq!(account_svc.methods.len(), 1);
+        assert_eq!(account_svc.methods[0].name, "open");
+    }
 }

@@ -32,7 +32,7 @@ pub struct Declaration {
     pub entries: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum DeclKind {
     Model,

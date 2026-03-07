@@ -1,0 +1,15 @@
+[source]
+language = "typescript"
+root = "./src"
+
+[source.layer_dirs]
+enterprise = "domain"
+interface = "ports"
+application = "application"
+framework = "adapters"
+
+[checks]
+existence = true
+structure = true
+relation = true
+drift = false

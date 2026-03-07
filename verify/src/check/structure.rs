@@ -122,6 +122,28 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
                 }
             }
         }
+
+        // S006: operation needs field checks
+        if decl.kind == DeclKind::Operation && td.kind == TypeDefKind::Struct {
+            for need in &decl.needs {
+                let field_name = naming::convert(need, config.field_case());
+                let found = td.fields.iter().any(|(n, _)| *n == field_name);
+                if !found {
+                    findings.push(Finding {
+                        code: "S006".to_string(),
+                        severity: Severity::Info,
+                        declaration: decl.name.clone(),
+                        message: format!(
+                            "needs \"{}\" but no matching field \"{}\"",
+                            need, field_name
+                        ),
+                        expected: Some(field_name),
+                        source_file: Some(td.file.display().to_string()),
+                        source_line: None,
+                    });
+                }
+            }
+        }
     }
 
     findings

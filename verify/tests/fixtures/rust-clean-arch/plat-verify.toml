@@ -1,0 +1,15 @@
+[source]
+language = "rust"
+root = "./src"
+
+[source.layer_dirs]
+enterprise = "domain"
+interface = "port"
+application = "usecase"
+framework = "infra"
+
+[checks]
+existence = true
+structure = true
+relation = true
+drift = false

@@ -1,0 +1,85 @@
+{
+  "name": "order-service",
+  "layers": [
+    { "name": "enterprise", "depends": [] },
+    { "name": "interface", "depends": ["enterprise"] },
+    { "name": "application", "depends": ["enterprise", "interface"] },
+    { "name": "framework", "depends": ["enterprise", "interface", "application"] }
+  ],
+  "declarations": [
+    {
+      "name": "Order",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [
+        { "name": "id", "type": "String" },
+        { "name": "customerId", "type": "String" },
+        { "name": "total", "type": "Float" },
+        { "name": "status", "type": "OrderStatus" }
+      ],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "OrderStatus",
+      "kind": "model",
+      "layer": "enterprise",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "OrderRepository",
+      "kind": "boundary",
+      "layer": "interface",
+      "fields": [],
+      "ops": [
+        {
+          "name": "Save",
+          "inputs": [{ "name": "order", "type": "Order" }],
+          "outputs": [{ "name": "result", "type": "Unit" }]
+        },
+        {
+          "name": "FindById",
+          "inputs": [{ "name": "id", "type": "String" }],
+          "outputs": [{ "name": "order", "type": "Order" }]
+        }
+      ],
+      "needs": [],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "PlaceOrder",
+      "kind": "operation",
+      "layer": "application",
+      "fields": [],
+      "ops": [],
+      "needs": ["OrderRepository"],
+      "implements": null,
+      "injects": [],
+      "entries": []
+    },
+    {
+      "name": "PostgresOrderRepo",
+      "kind": "adapter",
+      "layer": "framework",
+      "fields": [],
+      "ops": [],
+      "needs": [],
+      "implements": "OrderRepository",
+      "injects": [{ "name": "db", "type": "PgPool" }],
+      "entries": []
+    }
+  ],
+  "bindings": [
+    { "boundary": "OrderRepository", "adapter": "PostgresOrderRepo" }
+  ]
+}

@@ -1,4 +1,6 @@
+pub mod compose;
 pub mod existence;
+pub mod layer_deps;
 pub mod structure;
 pub mod relation;
 
@@ -66,6 +68,13 @@ pub fn run_checks(
     }
     if config.checks.relation {
         findings.extend(relation::check(manifest, facts, config));
+    }
+
+    // Compose checks are always run (manifest-internal consistency)
+    findings.extend(compose::check(manifest));
+
+    if config.checks.layer_deps {
+        findings.extend(layer_deps::check(manifest));
     }
 
     // Apply severity overrides

@@ -109,6 +109,8 @@ pub struct ChecksConfig {
     #[serde(default)]
     pub drift: bool,
     #[serde(default)]
+    pub layer_deps: bool,
+    #[serde(default)]
     pub severity: HashMap<String, Severity>,
 }
 
@@ -119,6 +121,7 @@ impl Default for ChecksConfig {
             structure: true,
             relation: true,
             drift: false,
+            layer_deps: false,
             severity: HashMap::new(),
         }
     }

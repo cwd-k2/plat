@@ -94,7 +94,7 @@ pub fn resolve(
     manifest_type.to_string()
 }
 
-fn split_generic_args(s: &str) -> Vec<&str> {
+pub(crate) fn split_generic_args(s: &str) -> Vec<&str> {
     let mut result = Vec::new();
     let mut depth = 0;
     let mut start = 0;
@@ -164,6 +164,53 @@ fn wrap_stream(lang: Language, inner: &str) -> String {
 /// Check if a manifest type is `Error`.
 pub fn is_error_type(manifest_type: &str) -> bool {
     manifest_type == "Error"
+}
+
+/// Built-in type names that should not be treated as user-defined type references.
+const BUILTINS: &[&str] = &[
+    "String", "Int", "Float", "Decimal", "Bool", "Unit", "Bytes",
+    "DateTime", "Any", "Error", "List", "Map", "Option", "Set",
+    "Result", "Stream",
+];
+
+/// Extract all user-defined type names referenced in a manifest type expression.
+///
+/// Strips nullable `?`, unwraps generic arguments, and filters out built-in types.
+pub fn extract_type_refs(manifest_type: &str) -> Vec<&str> {
+    let mut refs = Vec::new();
+    collect_type_refs(manifest_type, &mut refs);
+    refs
+}
+
+fn collect_type_refs<'a>(typ: &'a str, refs: &mut Vec<&'a str>) {
+    let typ = typ.trim();
+    if typ.is_empty() {
+        return;
+    }
+
+    // Nullable shorthand: T?
+    if let Some(inner) = typ.strip_suffix('?') {
+        collect_type_refs(inner, refs);
+        return;
+    }
+
+    // Generic: Name<Args...>
+    if let Some(pos) = typ.find('<') {
+        let name = &typ[..pos];
+        if !BUILTINS.contains(&name) {
+            refs.push(name);
+        }
+        let args_str = &typ[pos + 1..typ.len() - 1];
+        for arg in split_generic_args(args_str) {
+            collect_type_refs(arg.trim(), refs);
+        }
+        return;
+    }
+
+    // Simple name
+    if !BUILTINS.contains(&typ) {
+        refs.push(typ);
+    }
 }
 
 #[cfg(test)]
