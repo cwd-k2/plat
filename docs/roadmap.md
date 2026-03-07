@@ -84,6 +84,8 @@ meta ベースの拡張メカニズム。core の DeclItem を変更せず、sma
 
 ### Architecture as Code の進化
 
-- plat-repl の拡張 (check コマンド, diff コマンド, mermaid 出力)
-- Multi-service manifest 生成 (system-level manifest)
+- plat-doc: manifest → Mermaid/Markdown/DSM 生成 (Rust ツール化、Haskell Generate を廃止)
+- Drift 詳細化: T003 (余剰メソッド), T004 (未宣言 implements)
+- キャッシュバージョニング: パーサー変更時の stale cache 防止
+- Multi-service manifest 生成 (Haskell MultiService 拡張 → cross-language manifest)
 - VS Code extension の publish (VSIX パッケージ化)

@@ -170,12 +170,6 @@ impl ConfigVariant {
 }
 
 impl Config {
-    pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
-        let text = std::fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&text)?;
-        Ok(config)
-    }
-
     pub fn field_case(&self) -> Case {
         self.naming
             .field_case

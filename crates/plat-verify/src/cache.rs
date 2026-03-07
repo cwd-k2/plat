@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::extract::TypeDef;
 
+/// Cache format version. Bump this when parser capabilities change
+/// (e.g., adding enum extraction) to invalidate stale caches.
+const CACHE_VERSION: u32 = 2;
+
 /// Per-file cache entry keyed by mtime + size.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CacheEntry {
@@ -19,16 +23,20 @@ struct CacheEntry {
 /// File-level extraction cache backed by a JSON file.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExtractCache {
+    #[serde(default)]
+    version: u32,
     entries: HashMap<PathBuf, CacheEntry>,
 }
 
 impl ExtractCache {
-    /// Load cache from disk, or create empty if missing/corrupt.
+    /// Load cache from disk, or create empty if missing/corrupt/outdated.
     pub fn load(cache_path: &Path) -> Self {
         std::fs::read_to_string(cache_path)
             .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
+            .and_then(|s| serde_json::from_str::<Self>(&s).ok())
+            .filter(|c| c.version == CACHE_VERSION)
             .unwrap_or_else(|| Self {
+                version: CACHE_VERSION,
                 entries: HashMap::new(),
             })
     }
