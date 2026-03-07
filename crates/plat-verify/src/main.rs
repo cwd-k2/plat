@@ -185,6 +185,7 @@ fn main() {
                 root: cli.root.clone().unwrap_or_else(|| PathBuf::from("./src")),
                 layer_dirs: Default::default(),
                 layer_match: Default::default(),
+                exclude: Default::default(),
             },
             types: Default::default(),
             naming: Default::default(),
@@ -195,9 +196,15 @@ fn main() {
         process::exit(2);
     };
 
-    // CLI overrides
+    // Resolve root relative to config file directory (not CWD)
     if let Some(ref root) = cli.root {
         config.source.root = root.clone();
+    } else if cli.config.exists() {
+        if let Some(config_dir) = cli.config.parent() {
+            if config.source.root.is_relative() {
+                config.source.root = config_dir.join(&config.source.root);
+            }
+        }
     }
     if let Some(lang) = cli.language {
         config.source.language = Language::from(lang);

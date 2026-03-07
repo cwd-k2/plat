@@ -91,6 +91,8 @@ pub fn extract_all(
     let mut parser = adapter.new_parser()?;
     let mut facts = Vec::new();
 
+    let excludes = &config.source.exclude;
+
     for entry in WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if !path.is_file() {
@@ -98,6 +100,16 @@ pub fn extract_all(
         }
         if path.extension().and_then(|e| e.to_str()) != Some(ext) {
             continue;
+        }
+
+        // Skip excluded paths
+        if !excludes.is_empty() {
+            if let Ok(rel) = path.strip_prefix(root) {
+                let rel_str = rel.to_string_lossy();
+                if excludes.iter().any(|ex| rel_str.starts_with(ex.as_str())) {
+                    continue;
+                }
+            }
         }
 
         if adapter.is_test_file(path, root) {

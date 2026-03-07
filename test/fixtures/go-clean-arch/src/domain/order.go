@@ -9,8 +9,8 @@ const (
 )
 
 type Order struct {
-	Id         string
-	CustomerId string
+	ID         string
+	CustomerID string
 	Total      float64
 	Status     OrderStatus
 }

@@ -25,6 +25,9 @@ pub struct SourceConfig {
     pub layer_dirs: HashMap<String, String>,
     #[serde(default)]
     pub layer_match: LayerMatch,
+    /// Path prefixes to exclude from scanning (relative to root).
+    #[serde(default)]
+    pub exclude: Vec<String>,
 }
 
 /// How layer_dirs values are matched against file paths.
@@ -129,5 +132,26 @@ impl Config {
 
     pub fn severity_for(&self, code: &str) -> Option<Severity> {
         self.checks.severity.get(code).copied()
+    }
+
+    /// Convert a manifest name to source convention, respecting Go acronyms.
+    pub fn convert_name(&self, name: &str, case: Case) -> String {
+        if self.source.language == Language::Go && case == Case::Pascal {
+            plat_manifest::naming::convert_go(name)
+        } else {
+            plat_manifest::naming::convert(name, case)
+        }
+    }
+
+    pub fn convert_type_name(&self, name: &str) -> String {
+        self.convert_name(name, self.type_case())
+    }
+
+    pub fn convert_field_name(&self, name: &str) -> String {
+        self.convert_name(name, self.field_case())
+    }
+
+    pub fn convert_method_name(&self, name: &str) -> String {
+        self.convert_name(name, self.method_case())
     }
 }

@@ -256,6 +256,7 @@ mod tests {
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
                 layer_match: LayerMatch::Component,
+                exclude: Default::default(),
             },
             types: Default::default(),
             naming: Default::default(),

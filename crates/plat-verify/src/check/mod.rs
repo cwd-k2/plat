@@ -7,7 +7,7 @@ pub mod naming;
 pub mod structure;
 pub mod relation;
 
-use crate::config::{Config, Severity};
+use crate::config::{Config, Language, Severity};
 use crate::extract::FileFacts;
 use plat_manifest::Manifest;
 
@@ -101,11 +101,8 @@ pub fn compute_convergence(
 
         conv.types_expected += 1;
 
-        let expected_name = plat_manifest::naming::convert(&decl.name, config.type_case());
-        let td = facts
-            .iter()
-            .flat_map(|f| &f.types)
-            .find(|t| t.name == expected_name);
+        let expected_name = config.convert_type_name(&decl.name);
+        let td = find_type_by_name(facts, &expected_name, config);
 
         if let Some(td) = td {
             conv.types_found += 1;
@@ -113,7 +110,7 @@ pub fn compute_convergence(
             // Field convergence (Model / Adapter)
             for field in &decl.fields {
                 conv.fields_expected += 1;
-                let src_name = plat_manifest::naming::convert(&field.name, config.field_case());
+                let src_name = config.convert_field_name(&field.name);
                 if td.fields.iter().any(|(n, _)| *n == src_name) {
                     conv.fields_found += 1;
                 }
@@ -122,17 +119,18 @@ pub fn compute_convergence(
             // Method convergence (Boundary)
             for op in &decl.ops {
                 conv.methods_expected += 1;
-                let src_name = plat_manifest::naming::convert(&op.name, config.method_case());
+                let src_name = config.convert_method_name(&op.name);
                 if td.methods.iter().any(|m| m.name == src_name) {
                     conv.methods_found += 1;
                 }
             }
 
-            // Inject convergence (Adapter)
+            // Inject convergence (Adapter): try converted, raw, and camelCase names
             for inject in &decl.injects {
                 conv.fields_expected += 1;
-                let src_name = plat_manifest::naming::convert(&inject.name, config.field_case());
-                if td.fields.iter().any(|(n, _)| *n == src_name) {
+                let src_name = config.convert_field_name(&inject.name);
+                let camel = plat_manifest::naming::convert(&inject.name, plat_manifest::Case::Camel);
+                if td.fields.iter().any(|(n, _)| *n == src_name || *n == inject.name || *n == camel) {
                     conv.fields_found += 1;
                 }
             }
@@ -140,6 +138,36 @@ pub fn compute_convergence(
     }
 
     conv
+}
+
+/// Find a type by name across all facts, with Go package-prefix fallback.
+///
+/// In Go, `PostgresOrderRepo` may exist as `OrderRepo` in package `postgres`.
+/// When exact match fails, tries suffix-matching against the expected name.
+pub fn find_type_by_name<'a>(
+    facts: &'a [FileFacts],
+    expected_name: &str,
+    config: &Config,
+) -> Option<&'a crate::extract::TypeDef> {
+    // Exact match
+    for file in facts {
+        for td in &file.types {
+            if td.name == expected_name {
+                return Some(td);
+            }
+        }
+    }
+    // Go package-prefix fallback: expected "PostgresOrderRepo", source has "OrderRepo"
+    if config.source.language == Language::Go {
+        for file in facts {
+            for td in &file.types {
+                if expected_name.ends_with(&td.name) && expected_name != td.name {
+                    return Some(td);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Run all enabled checks.

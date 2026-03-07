@@ -1,8 +1,7 @@
-use crate::check::Finding;
+use crate::check::{find_type_by_name, Finding};
 use crate::config::{Config, Language, Severity};
 use crate::extract::{FileFacts, TypeDef, TypeDefKind};
 use plat_manifest::{DeclKind, Manifest};
-use plat_manifest::naming;
 
 /// R0xx: Check relationship conformance (implements, bindings).
 pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<Finding> {
@@ -18,11 +17,11 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
             continue;
         };
 
-        let adapter_src_name = naming::convert(&decl.name, config.type_case());
-        let boundary_src_name = naming::convert(boundary_name, config.type_case());
+        let adapter_src_name = config.convert_type_name(&decl.name);
+        let boundary_src_name = config.convert_type_name(boundary_name);
 
-        let adapter_td = find_type(facts, &adapter_src_name);
-        let boundary_td = find_type(facts, &boundary_src_name);
+        let adapter_td = find_type_by_name(facts, &adapter_src_name, config);
+        let boundary_td = find_type_by_name(facts, &boundary_src_name, config);
 
         let (Some(adapter), Some(boundary)) = (adapter_td, boundary_td) else {
             continue; // existence checks handle missing types
@@ -57,11 +56,11 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
 
     // R002: binding conformance
     for binding in &manifest.bindings {
-        let adapter_src_name = naming::convert(&binding.adapter, config.type_case());
-        let boundary_src_name = naming::convert(&binding.boundary, config.type_case());
+        let adapter_src_name = config.convert_type_name(&binding.adapter);
+        let boundary_src_name = config.convert_type_name(&binding.boundary);
 
-        let adapter_td = find_type(facts, &adapter_src_name);
-        let boundary_td = find_type(facts, &boundary_src_name);
+        let adapter_td = find_type_by_name(facts, &adapter_src_name, config);
+        let boundary_td = find_type_by_name(facts, &boundary_src_name, config);
 
         let (Some(adapter), Some(boundary)) = (adapter_td, boundary_td) else {
             continue;
@@ -84,13 +83,6 @@ pub fn check(manifest: &Manifest, facts: &[FileFacts], config: &Config) -> Vec<F
     }
 
     findings
-}
-
-fn find_type<'a>(facts: &'a [FileFacts], name: &str) -> Option<&'a TypeDef> {
-    facts
-        .iter()
-        .flat_map(|f| &f.types)
-        .find(|td| td.name == name)
 }
 
 /// Check whether an adapter type implements a boundary type.

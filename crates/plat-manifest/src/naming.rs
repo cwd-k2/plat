@@ -1,5 +1,12 @@
 use crate::Case;
 
+/// Known Go-style acronyms that should be fully uppercased in PascalCase.
+const GO_ACRONYMS: &[&str] = &[
+    "id", "url", "http", "https", "json", "xml", "sql", "api", "ip",
+    "tcp", "udp", "tls", "ssh", "html", "css", "cpu", "gpu", "io",
+    "os", "db", "ui", "uuid", "uri", "utf", "ascii", "grpc", "rpc",
+];
+
 /// Split a PascalCase or camelCase identifier into words.
 fn split_words(s: &str) -> Vec<String> {
     let mut words = Vec::new();
@@ -27,6 +34,11 @@ fn split_words(s: &str) -> Vec<String> {
     words
 }
 
+fn is_go_acronym(word: &str) -> bool {
+    let lower = word.to_lowercase();
+    GO_ACRONYMS.contains(&lower.as_str())
+}
+
 /// Check if a name conforms to the given case convention.
 ///
 /// Uses structural checks rather than round-tripping through `convert`,
@@ -52,6 +64,30 @@ pub fn matches_case(name: &str, case: Case) -> bool {
             name.chars().all(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_')
         }
     }
+}
+
+/// Convert a name to Go-style PascalCase, respecting Go acronym conventions.
+///
+/// `findById` → `FindByID`, `orderId` → `OrderID`, `httpUrl` → `HTTPURL`
+pub fn convert_go(name: &str) -> String {
+    let words = split_words(name);
+    if words.is_empty() {
+        return name.to_string();
+    }
+    words
+        .iter()
+        .map(|w| {
+            if is_go_acronym(w) {
+                w.to_uppercase()
+            } else {
+                let mut chars = w.chars();
+                match chars.next() {
+                    Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                    None => String::new(),
+                }
+            }
+        })
+        .collect()
 }
 
 pub fn convert(name: &str, target: Case) -> String {

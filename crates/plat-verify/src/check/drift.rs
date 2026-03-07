@@ -94,6 +94,7 @@ mod tests {
                 root: PathBuf::from("./src"),
                 layer_dirs: HashMap::new(),
                 layer_match: Default::default(),
+                exclude: Default::default(),
             },
             types: HashMap::new(),
             naming: NamingConfig::default(),

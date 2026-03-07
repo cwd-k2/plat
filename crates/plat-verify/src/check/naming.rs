@@ -91,6 +91,7 @@ mod tests {
                 root: PathBuf::from("./src"),
                 layer_dirs: Default::default(),
                 layer_match: LayerMatch::Prefix,
+                exclude: Default::default(),
             },
             types: Default::default(),
             naming: Default::default(),

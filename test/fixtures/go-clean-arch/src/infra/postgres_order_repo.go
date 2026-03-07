@@ -17,6 +17,6 @@ func (r *PostgresOrderRepo) Save(order domain.Order) error {
 	return nil
 }
 
-func (r *PostgresOrderRepo) FindById(id string) (domain.Order, error) {
+func (r *PostgresOrderRepo) FindByID(id string) (domain.Order, error) {
 	return domain.Order{}, nil
 }
