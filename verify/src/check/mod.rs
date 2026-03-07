@@ -1,4 +1,5 @@
 pub mod compose;
+pub mod drift;
 pub mod existence;
 pub mod layer_deps;
 pub mod structure;
@@ -75,6 +76,9 @@ pub fn run_checks(
 
     if config.checks.layer_deps {
         findings.extend(layer_deps::check(manifest));
+    }
+    if config.checks.drift {
+        findings.extend(drift::check(manifest, facts, config));
     }
 
     // Apply severity overrides

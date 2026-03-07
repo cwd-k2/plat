@@ -40,9 +40,23 @@ struct Cli {
     #[arg(long, default_value = "info")]
     severity: Severity,
 
+    /// Enable specific check categories (can be repeated; overrides config)
+    #[arg(long = "check", value_name = "CATEGORY")]
+    checks: Vec<CheckCategory>,
+
     /// Show only summary
     #[arg(short, long)]
     quiet: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum CheckCategory {
+    Existence,
+    Structure,
+    Relation,
+    Drift,
+    #[value(name = "layer-deps")]
+    LayerDeps,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -102,6 +116,15 @@ fn main() {
     }
     if let Some(lang) = cli.language {
         config.source.language = lang;
+    }
+
+    // --check overrides: if specified, only enable listed categories
+    if !cli.checks.is_empty() {
+        config.checks.existence = cli.checks.contains(&CheckCategory::Existence);
+        config.checks.structure = cli.checks.contains(&CheckCategory::Structure);
+        config.checks.relation = cli.checks.contains(&CheckCategory::Relation);
+        config.checks.drift = cli.checks.contains(&CheckCategory::Drift);
+        config.checks.layer_deps = cli.checks.contains(&CheckCategory::LayerDeps);
     }
 
     // Extract source facts
