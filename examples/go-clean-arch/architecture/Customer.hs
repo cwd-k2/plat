@@ -51,12 +51,11 @@ pgCustomerRepo = impl "PostgresCustomerRepo" framework customerRepo $ do
   inject "db" (ext "*sql.DB")
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl customer
-  , decl customerStatus
-  , decl customerRepo
-  , decl createCustomer
-  , decl getCustomer
-  , decl updateCustomerAddress
-  , decl pgCustomerRepo
-  ]
+declareAll = do
+  declare customer
+  declare customerStatus
+  declare customerRepo
+  declare createCustomer
+  declare getCustomer
+  declare updateCustomerAddress
+  declare pgCustomerRepo

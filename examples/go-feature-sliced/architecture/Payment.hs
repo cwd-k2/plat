@@ -86,14 +86,13 @@ paymentModule = domain "PaymentFeature" $ do
   expose stubPaymentGateway
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl paymentStatus
-  , decl payment
-  , decl paymentGateway
-  , decl paymentRepo
-  , decl processPayment
-  , decl getPayment
-  , decl memPaymentRepo
-  , decl stubPaymentGateway
-  , decl paymentModule
-  ]
+declareAll = do
+  declare paymentStatus
+  declare payment
+  declare paymentGateway
+  declare paymentRepo
+  declare processPayment
+  declare getPayment
+  declare memPaymentRepo
+  declare stubPaymentGateway
+  declare paymentModule

@@ -19,7 +19,7 @@ import Notification (templateStore, notificationSender, notificationLog)
 scheduleStore :: Decl 'Boundary
 scheduleStore = boundary "ScheduleStore" port_ $ do
   op "save"          ["schedule" .: ref schedule] ["err" .: error_]
-  op "findPending"   [] ["schedules" .: listOf schedule, "err" .: error_]
+  op "findPending"   [] ["schedules" .: list (ref schedule), "err" .: error_]
   op "markExecuted"  ["id" .: string] ["err" .: error_]
   op "cancel"        ["id" .: string] ["err" .: error_]
 
@@ -68,10 +68,9 @@ inMemoryScheduleStore = adapter "InMemoryScheduleStore" adp $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl scheduleStore
-  , decl scheduleNotification
-  , decl processPendingSchedules
-  , decl cancelSchedule
-  , decl inMemoryScheduleStore
-  ]
+declareAll = do
+  declare scheduleStore
+  declare scheduleNotification
+  declare processPendingSchedules
+  declare cancelSchedule
+  declare inMemoryScheduleStore

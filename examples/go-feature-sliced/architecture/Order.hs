@@ -28,7 +28,7 @@ order :: Decl 'Model
 order = aggregate "Order" enterprise $ do
   field "id"        (customType "UUID")
   field "customerId" (customType "UUID")
-  field "items"     (listOf orderItem)
+  field "items"     (list (ref orderItem))
   field "total"     (ref money)
   field "shipping"  (ref address)
   field "status"    (ref orderStatus)
@@ -47,7 +47,7 @@ orderRepo :: Decl 'Boundary
 orderRepo = port "OrderRepository" interface $ do
   op "save"     ["order" .: ref order] ["err" .: error_]
   op "findById" ["id" .: customType "UUID"] ["order" .: ref order, "err" .: error_]
-  op "findAll"  [] ["orders" .: listOf order, "err" .: error_]
+  op "findAll"  [] ["orders" .: list (ref order), "err" .: error_]
   op "delete"   ["id" .: customType "UUID"] ["err" .: error_]
 
 -- Use cases
@@ -76,7 +76,7 @@ getOrder = usecase "GetOrder" application $ do
 
 listOrders :: Decl 'Operation
 listOrders = usecase "ListOrders" application $ do
-  output "orders" (listOf order)
+  output "orders" (list (ref order))
   output "err"    error_
   needs orderRepo
 
@@ -102,15 +102,14 @@ orderModule = domain "OrderFeature" $ do
   expose memOrderRepo
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl orderStatus
-  , decl order
-  , decl orderItem
-  , decl orderRepo
-  , decl placeOrder
-  , decl cancelOrder
-  , decl getOrder
-  , decl listOrders
-  , decl memOrderRepo
-  , decl orderModule
-  ]
+declareAll = do
+  declare orderStatus
+  declare order
+  declare orderItem
+  declare orderRepo
+  declare placeOrder
+  declare cancelOrder
+  declare getOrder
+  declare listOrders
+  declare memOrderRepo
+  declare orderModule

@@ -84,16 +84,17 @@ deliveryReport = model "DeliveryReport" dom $ do
   field "deliveredAt"    (nullable dateTime)
   field "errorMessage"   (nullable string)
 
+-- | ArchBuilder はモナド — declare を do 記法で連ねるだけでよい。
+--   declares は動的リスト向け。静的な登録には declare を使う。
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl channel
-  , decl priority
-  , decl recipient
-  , decl template
-  , decl notification
-  , decl scheduleStatus
-  , decl schedule
-  , decl userPreference
-  , decl deliveryStatus
-  , decl deliveryReport
-  ]
+declareAll = do
+  declare channel
+  declare priority
+  declare recipient
+  declare template
+  declare notification
+  declare scheduleStatus
+  declare schedule
+  declare userPreference
+  declare deliveryStatus
+  declare deliveryReport

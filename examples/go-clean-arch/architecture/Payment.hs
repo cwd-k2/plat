@@ -24,4 +24,7 @@ stripePayment = impl "StripePayment" framework paymentGateway $ do
   inject "client" (ext "*stripe.Client")
 
 declareAll :: ArchBuilder ()
-declareAll = declares [decl paymentRecord, decl paymentGateway, decl stripePayment]
+declareAll = do
+  declare paymentRecord
+  declare paymentGateway
+  declare stripePayment

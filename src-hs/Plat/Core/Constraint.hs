@@ -18,8 +18,6 @@ module Plat.Core.Constraint
   , holds
 
     -- * Constraint composition
-  , both
-  , allOf
   , oneOf
   , neg
   ) where
@@ -57,25 +55,14 @@ holds msg p a = [msg | not (p a)]
 
 ----------------------------------------------------------------------
 -- Constraint composition
-----------------------------------------------------------------------
-
--- | 2つの検査関数の論理積。両方の違反を合わせて報告する。
+--
+-- Architecture -> [Text] は Monoid なので、論理積には標準の (<>) / mconcat を使う:
 --
 -- @
 -- constrain "strict" "adapter rules" $
---   require Adapter "..." pred1 \`both\` require Adapter "..." pred2
+--   require Adapter "..." p1 <> forbid Model "..." p2
 -- @
-both :: (Architecture -> [Text]) -> (Architecture -> [Text]) -> Architecture -> [Text]
-both f g a = f a ++ g a
-
--- | 複数の検査関数の論理積。全違反を合わせて報告する。
---
--- @
--- constrain "all-rules" "combined" $
---   allOf [require Adapter "..." p1, forbid Model "..." p2, holds "..." p3]
--- @
-allOf :: [Architecture -> [Text]] -> Architecture -> [Text]
-allOf fs a = concatMap (\f -> f a) fs
+----------------------------------------------------------------------
 
 -- | 複数の検査関数の論理和。いずれか一つでも違反なしなら全体を通過とする。
 --

@@ -51,7 +51,7 @@ order = model "Order" core $ do
   path "domain/order.go"
   field "id"         uuid
   field "customerId" uuid
-  field "items"      (listOf orderItem)
+  field "items"      (list (ref orderItem))
   field "status"     (ref orderStatus)
   field "total"      (alias money)
   field "createdAt"  dateTime
@@ -77,7 +77,7 @@ placeOrder :: Decl 'Operation
 placeOrder = operation "PlaceOrder" application $ do
   path "usecase/place_order.go"
   input  "customerId" uuid
-  input  "items"      (listOf orderItem)
+  input  "items"      (list (ref orderItem))
   output "order"      (ref order)
   output "err"        error_
   needs orderRepo
@@ -118,7 +118,6 @@ appRoot = compose "AppRoot" $ do
   bind orderRepo       postgresOrderRepo
   bind paymentGateway  stripePayment
   entry httpHandler
-  entryName "MainServer"
 
 coreArch :: Architecture
 coreArch = arch "order-service" $ do

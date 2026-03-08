@@ -55,7 +55,6 @@ module Plat.Core
   , HasPath
   , field
   , op
-  , op'
   , input
   , output
   , needs
@@ -63,7 +62,6 @@ module Plat.Core
   , inject
   , bind
   , entry
-  , entryName
   , path
   , meta
 
@@ -85,8 +83,6 @@ module Plat.Core
   , holds
 
     -- * Constraint composition
-  , both
-  , allOf
   , oneOf
   , neg
 
@@ -158,9 +154,6 @@ module Plat.Core
   , idOf
   , alias
   , Referenceable
-  , listOf
-  , optionOf
-  , setOf
   , ext
   , customType
   , error_

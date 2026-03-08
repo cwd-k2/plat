@@ -362,8 +362,7 @@
         },
         {
             "entries": [
-                "OrderHttpHandler",
-                "MainServer"
+                "OrderHttpHandler"
             ],
             "fields": [],
             "implements": null,

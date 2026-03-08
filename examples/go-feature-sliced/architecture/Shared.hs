@@ -27,4 +27,7 @@ sharedModule = domain "SharedKernel" $ do
   expose address
 
 declareAll :: ArchBuilder ()
-declareAll = declares [decl money, decl address, decl sharedModule]
+declareAll = do
+  declare money
+  declare address
+  declare sharedModule

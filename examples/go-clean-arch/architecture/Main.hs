@@ -20,6 +20,11 @@ import qualified Customer
 import qualified Catalog
 import qualified Payment
 
+-- | アーキテクチャ定義。各モジュールの declareAll を束ねて単一の Architecture を構築する。
+--
+-- arch は ArchBuilder モナドを走らせて Architecture 値を生成する。
+-- useLayers でレイヤー依存方向を定義し、registerType で
+-- カスタム型を登録する (W002 未定義型検査で既知型として扱われる)。
 architecture :: Architecture
 architecture = arch "order-service" $ do
   useLayers cleanArchLayers
@@ -29,7 +34,7 @@ architecture = arch "order-service" $ do
   Customer.declareAll
   Catalog.declareAll
   Payment.declareAll
-  declares [decl wiring]
+  declare wiring
 
 wiring :: Decl 'Compose
 wiring = wire "OrderServiceWiring" $ do

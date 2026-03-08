@@ -33,14 +33,13 @@ getStatement = query "GetStatement" app $ do
 
 listAccounts :: Decl 'Operation
 listAccounts = query "ListAccounts" app $ do
-  output "accounts" (listOf account)
+  output "accounts" (list (ref account))
   output "err"      error_
   needs accountRepo
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl getBalance
-  , decl getHistory_
-  , decl getStatement
-  , decl listAccounts
-  ]
+declareAll = do
+  declare getBalance
+  declare getHistory_
+  declare getStatement
+  declare listAccounts

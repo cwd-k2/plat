@@ -21,8 +21,7 @@ pgStatementStore = adapter "PostgresStatementStore" infra $ do
   inject "pool" (ext "sqlx::PgPool")
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl pgEventStore
-  , decl pgAccountRepo
-  , decl pgStatementStore
-  ]
+declareAll = do
+  declare pgEventStore
+  declare pgAccountRepo
+  declare pgStatementStore

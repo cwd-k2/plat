@@ -115,7 +115,7 @@ statement = value "Statement" dom $ do
   field "periodEnd"      dateTime
   field "openingBalance" (ref money)
   field "closingBalance" (ref money)
-  field "entries"        (listOf statementEntry)
+  field "entries"        (list (ref statementEntry))
 
 ----------------------------------------------------------------------
 -- Policies
@@ -131,19 +131,18 @@ withdrawalPolicy = policy "WithdrawalPolicy" dom $ do
 ----------------------------------------------------------------------
 
 declareAll :: ArchBuilder ()
-declareAll = declares
-  [ decl money
-  , decl accountId
-  , decl account
-  , decl withdrawalPolicy
-  , decl statementEntry
-  , decl statement
-  , decl accountOpened
-  , decl moneyDeposited
-  , decl moneyWithdrawn
-  , decl transferCompleted
-  , decl accountClosed
-  , decl accountFrozen
-  , decl accountUnfrozen
-  , decl interestAccrued
-  ]
+declareAll = do
+  declare money
+  declare accountId
+  declare account
+  declare withdrawalPolicy
+  declare statementEntry
+  declare statement
+  declare accountOpened
+  declare moneyDeposited
+  declare moneyWithdrawn
+  declare transferCompleted
+  declare accountClosed
+  declare accountFrozen
+  declare accountUnfrozen
+  declare interestAccrued

@@ -35,7 +35,6 @@ module Plat.Core.Builder
 
     -- * DeclWriter combinators — Boundary
   , op
-  , op'
 
     -- * DeclWriter combinators — Operation
   , input
@@ -49,7 +48,6 @@ module Plat.Core.Builder
     -- * DeclWriter combinators — Compose
   , bind
   , entry
-  , entryName
 
     -- * DeclWriter combinators — Universal
   , path
@@ -241,10 +239,6 @@ field name ty = addItem (Field name ty)
 op :: Text -> [Param] -> [Param] -> DeclWriter 'Boundary ()
 op name ins outs = addItem (Op name ins outs)
 
--- | 'op' の簡易版。単一の戻り値型を直接指定する。
-op' :: Text -> [Param] -> TypeExpr -> DeclWriter 'Boundary ()
-op' name params retType = op name params [Param "_" retType]
-
 -- Operation
 
 -- | オペレーションの入力パラメータを宣言する。
@@ -279,10 +273,6 @@ bind (Decl bnd) (Decl adp) = addItem (Bind (declName bnd) (declName adp))
 -- | コンポジションのエントリポイントを登録する。任意の宣言種を指定可能。
 entry :: Decl k -> DeclWriter 'Compose ()
 entry (Decl d) = addItem (Entry (declName d))
-
--- | 名前を直接指定してエントリポイントを登録する。
-entryName :: Text -> DeclWriter 'Compose ()
-entryName name = addItem (Entry name)
 
 -- Universal
 

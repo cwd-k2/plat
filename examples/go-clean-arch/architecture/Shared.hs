@@ -16,4 +16,6 @@ address = value "Address" enterprise $ do
   field "country" string
 
 declareAll :: ArchBuilder ()
-declareAll = declares [decl money, decl address]
+declareAll = do
+  declare money
+  declare address

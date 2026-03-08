@@ -93,7 +93,7 @@ testRelations = do
             gs = cyclicGroups ["dep"] cycArch
         in not (null gs) && not (isAcyclic ["dep"] cycArch))
     , ("typeRefs extracts TRef",
-        typeRefs (listOf order) == ["Order"])
+        typeRefs (list (ref order)) == ["Order"])
     , ("typeRefs extracts nullable",
         typeRefs (nullable (ref order)) == ["Order"])
     , ("typeRefs excludes TExt",

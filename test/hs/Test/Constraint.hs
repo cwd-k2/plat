@@ -8,6 +8,7 @@ import Plat.Check
 import Plat.Verify.Manifest
 
 import Data.Maybe (isJust)
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -124,20 +125,20 @@ testConstraintComposition = do
       alwaysPass = holds "always passes" (const True)
 
   runTests
-    [ ("both: combines violations",
-        length (both neverPass neverPass archWithConstraints) == 2)
-    , ("both: one passes one fails",
-        length (both alwaysPass neverPass archWithConstraints) == 1)
-    , ("both: both pass",
-        null (both alwaysPass hasModels archWithConstraints))
-    , ("allOf: empty list passes",
-        null (allOf [] archWithConstraints))
-    , ("allOf: all pass",
-        null (allOf [alwaysPass, hasModels] archWithConstraints))
-    , ("allOf: one fails",
-        length (allOf [alwaysPass, neverPass] archWithConstraints) == 1)
-    , ("allOf: all fail",
-        length (allOf [neverPass, neverPass] archWithConstraints) == 2)
+    [ ("(<>): combines violations",
+        length ((neverPass <> neverPass) archWithConstraints) == 2)
+    , ("(<>): one passes one fails",
+        length ((alwaysPass <> neverPass) archWithConstraints) == 1)
+    , ("(<>): both pass",
+        null ((alwaysPass <> hasModels) archWithConstraints))
+    , ("mconcat: empty list passes",
+        null (mconcat ([] :: [Architecture -> [Text]]) archWithConstraints))
+    , ("mconcat: all pass",
+        null (mconcat [alwaysPass, hasModels] archWithConstraints))
+    , ("mconcat: one fails",
+        length (mconcat [alwaysPass, neverPass] archWithConstraints) == 1)
+    , ("mconcat: all fail",
+        length (mconcat [neverPass, neverPass] archWithConstraints) == 2)
     , ("oneOf: empty list passes",
         null (oneOf [] archWithConstraints))
     , ("oneOf: one passes",
@@ -151,6 +152,6 @@ testConstraintComposition = do
         length (neg "should fail" alwaysPass archWithConstraints) == 1)
     , ("neg: inverts fail to pass",
         null (neg "inverted" neverPass archWithConstraints))
-    , ("composition: both + neg",
-        null (both hasModels (neg "no models" neverPass) archWithConstraints))
+    , ("composition: (<>) + neg",
+        null ((hasModels <> neg "no models" neverPass) archWithConstraints))
     ]
