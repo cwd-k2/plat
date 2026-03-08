@@ -11,6 +11,10 @@ struct Cli {
     /// Output format
     #[arg(short, long, default_value = "markdown")]
     format: DocFormat,
+
+    /// Mermaid graph direction
+    #[arg(short, long, default_value = "lr")]
+    direction: plat_doc::Direction,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -41,7 +45,7 @@ fn main() {
 
     let output = match cli.format {
         DocFormat::Markdown => plat_doc::render_markdown(&manifest),
-        DocFormat::Mermaid => plat_doc::render_mermaid(&manifest),
+        DocFormat::Mermaid => plat_doc::render_mermaid(&manifest, cli.direction),
         DocFormat::Dsm => plat_doc::render_dsm(&manifest),
     };
 
