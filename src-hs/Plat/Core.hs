@@ -1,164 +1,100 @@
 -- | Plat Core eDSL — アーキテクチャ記述の公開 API。
 --
--- このモジュールをインポートすれば、レイヤー定義・型式・宣言構築・メタDSL の
+-- このモジュールをインポートすれば、レイヤー定義・型式・宣言構築・メタ DSL の
 -- すべてが利用可能になる。通常はこのモジュールのみをインポートする。
 --
 -- @
 -- import Plat.Core
 --
--- enterprise, interface :: LayerDef
--- enterprise = layer "enterprise"
--- interface  = layer "interface" \`depends\` [enterprise]
---
 -- order :: Decl 'Model
 -- order = model "Order" enterprise $ do
 --   field "id"    string
---   field "total" int
+--   field "total" (ref money)
 -- @
 module Plat.Core
-  ( -- * Types (AST)
-    DeclKind (..)
-  , Architecture (..)
-  , LayerDef (..)
-  , TypeAlias (..)
-  , Declaration (..)
-  , Decl (..)
-  , decl
-  , DeclItem (..)
-  , Param (..)
-  , TypeExpr (..)
-  , Builtin (..)
-
-    -- * Helpers
-  , findImplements
-  , declFields
-  , declOps
-  , declNeeds
-  , lookupMeta
-
-    -- * Layer constructors
+  ( -- * レイヤー定義
+    LayerDef (..)
   , layer
   , depends
 
-    -- * Type alias
-  , (=:)
+    -- * 型式
+  , TypeExpr (..)
+  , Builtin (..)
+  , Param (..)
+  , (.:)
+    -- ** プリミティブ型
+  , string, int, float, decimal, bool
+  , unit, bytes, dateTime, any_
+    -- ** 型コンストラクタ
+  , list, option, set, map_, stream, nullable, result
+    -- ** 参照
+  , ref, idOf, alias, Referenceable
+  , ext, customType, error_
+    -- ** 型エイリアス
+  , TypeAlias (..), (=:)
+    -- ** レンダリング
+  , renderTypeExpr
 
-    -- * Declaration constructors
-  , model
-  , boundary
-  , operation
-  , adapter
-  , compose
-
-    -- * DeclWriter monad and combinators
-  , DeclWriter
-  , HasPath
+    -- * 宣言
+  , DeclKind (..)
+  , Decl (..), decl
+  , Declaration (..)
+  , DeclItem (..)
+    -- ** 宣言コンストラクタ
+  , model, boundary, operation, adapter, compose
+    -- ** Model コンビネータ
   , field
+    -- ** Boundary コンビネータ
   , op
-  , input
-  , output
-  , needs
-  , implements
-  , inject
-  , bind
-  , entry
-  , path
-  , meta
+    -- ** Operation コンビネータ
+  , input, output, needs
+    -- ** Adapter コンビネータ
+  , implements, inject
+    -- ** Compose コンビネータ
+  , bind, entry
+    -- ** 汎用コンビネータ
+  , DeclWriter, HasPath
+  , path, meta
 
-    -- * ArchBuilder monad
+    -- * アーキテクチャ
+  , Architecture (..)
   , ArchBuilder
   , arch
-  , useLayers
-  , useTypes
-  , registerType
-  , declare
-  , declares
-  , constrain
+  , useLayers, useTypes, registerType
+  , declare, declares
+  , constrain, relate
 
-    -- * Constraint combinators
+    -- * 制約
   , ArchConstraint (..)
-  , require
-  , forbid
-  , forAll
-  , holds
+  , require, forbid, forAll, holds
+  , oneOf, neg
+  , operationNeedsBoundary, unwiredBoundaries, noNeedsCycle
 
-    -- * Constraint composition
-  , oneOf
-  , neg
-
-    -- * Relations
+    -- * 関係グラフ
   , Relation (..)
-  , relate
-  , relations
-  , relationsOf
-  , dependsOn
-  , implementedBy
-  , boundTo
-  , transitive
-  , reachable
-  , isAcyclic
-  , cyclicGroups
-  , forwardImpact
-  , reverseImpact
+  , relations, relationsOf
+  , dependsOn, implementedBy, boundTo
+  , transitive, reachable
+  , isAcyclic, cyclicGroups
+  , forwardImpact, reverseImpact
   , typeRefs
 
-    -- * Architecture algebra
-  , merge
-  , mergeAll
-  , Conflict (..)
-  , isCompatible
-  , project
-  , projectLayer
-  , projectKind
-  , ArchDiff (..)
-  , DeclChange (..)
-  , diff
+    -- * 代数
+  , merge, mergeAll
+  , Conflict (..), isCompatible
+  , project, projectLayer, projectKind
+  , ArchDiff (..), DeclChange (..), diff
 
-    -- * Meta DSL
-  , ExtId
-  , MetaTag
-  , extId
-  , kind
-  , tagAs
-  , isTagged
-  , attr
-  , lookupAttr
-  , annotate
-  , annotations
-  , refer
-  , references
+    -- * メタ DSL
+  , ExtId, MetaTag
+  , extId, kind
+  , tagAs, isTagged
+  , attr, lookupAttr
+  , annotate, annotations
+  , refer, references
 
-    -- * Constraint presets
-  , operationNeedsBoundary
-  , unwiredBoundaries
-  , noNeedsCycle
-
-    -- * Type expressions
-  , string
-  , int
-  , float
-  , decimal
-  , bool
-  , unit
-  , bytes
-  , dateTime
-  , any_
-  , result
-  , option
-  , list
-  , set
-  , mapType
-  , stream
-  , nullable
-  , ref
-  , idOf
-  , alias
-  , Referenceable
-  , ext
-  , customType
-  , error_
-  , (.:)
-  , renderTypeExpr
+    -- * 宣言クエリ
+  , findImplements, declFields, declOps, declNeeds, lookupMeta
   ) where
 
 import Plat.Core.Types

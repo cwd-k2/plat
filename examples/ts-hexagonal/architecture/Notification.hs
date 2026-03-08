@@ -42,7 +42,7 @@ sendNotification :: Decl 'Operation
 sendNotification = operation "SendNotification" app $ do
   input  "recipientId" string
   input  "templateId"  string
-  input  "vars"        (mapType string string)
+  input  "vars"        (map_ string string)
   input  "priority"    (ref priority)
   output "notificationId" string
   output "err"         error_
@@ -54,7 +54,7 @@ sendBulk :: Decl 'Operation
 sendBulk = operation "SendBulkNotification" app $ do
   input  "recipientIds" (list string)
   input  "templateId"   string
-  input  "vars"         (mapType string string)
+  input  "vars"         (map_ string string)
   output "sent"         int
   output "failed"       int
   output "err"          error_

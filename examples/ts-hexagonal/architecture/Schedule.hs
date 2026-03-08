@@ -31,7 +31,7 @@ scheduleNotification :: Decl 'Operation
 scheduleNotification = operation "ScheduleNotification" app $ do
   input  "recipientId" string
   input  "templateId"  string
-  input  "vars"        (mapType string string)
+  input  "vars"        (map_ string string)
   input  "priority"    (ref priority)
   input  "scheduledAt" dateTime
   output "scheduleId"  string

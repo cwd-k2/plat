@@ -23,7 +23,7 @@ result   :: TypeExpr -> TypeExpr -> TypeExpr  -- Result<T, E>
 option   :: TypeExpr -> TypeExpr              -- Option<T>
 list     :: TypeExpr -> TypeExpr              -- List<T>
 set      :: TypeExpr -> TypeExpr              -- Set<T>
-mapType  :: TypeExpr -> TypeExpr -> TypeExpr  -- Map<K, V>
+map_  :: TypeExpr -> TypeExpr -> TypeExpr  -- Map<K, V>
 stream   :: TypeExpr -> TypeExpr              -- Stream<T>
 nullable :: TypeExpr -> TypeExpr              -- T?
 ```
@@ -101,7 +101,7 @@ field "id"        (customType "UUID")            -- カスタム型 (registerTyp
 field "status"    (ref orderStatus)              -- model 参照
 field "items"     (listOf orderItem)             -- 参照コンビネータ
 field "total"     (alias money)                  -- TypeAlias 参照
-field "metadata"  (mapType string any_)          -- any_
+field "metadata"  (map_ string any_)          -- any_
 field "parent"    (nullable (ref category))      -- nullable
 inject "db"       (ext "*sql.DB")                -- 外部型 (TExt)
 op "save" ["order" .: ref order] ["err" .: error_]  -- 予約型

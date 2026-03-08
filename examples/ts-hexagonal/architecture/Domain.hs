@@ -46,7 +46,7 @@ notification = model "Notification" dom $ do
   field "template"   (ref template)
   field "channel"    (ref channel)
   field "priority"   (ref priority)
-  field "vars"       (mapType string string)
+  field "vars"       (map_ string string)
   field "sentAt"     (nullable dateTime)
   field "status"     string
 
@@ -58,7 +58,7 @@ schedule = model "Schedule" dom $ do
   field "id"          string
   field "recipientId" string
   field "templateId"  string
-  field "vars"        (mapType string string)
+  field "vars"        (map_ string string)
   field "priority"    (ref priority)
   field "scheduledAt" dateTime
   field "executedAt"  (nullable dateTime)

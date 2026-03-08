@@ -1,34 +1,34 @@
--- | Structured meta DSL for extensions.
+-- | 拡張メタ DSL。
 --
--- Provides typed helpers over the raw @meta@ key-value pairs,
--- ensuring consistent namespacing and eliminating magic strings.
+-- 生の @meta@ キー・値ペアに対する型付きヘルパーを提供し、
+-- 名前空間の一貫性を保証してマジックストリングを排除する。
 --
--- Four patterns cover all extension meta usage:
+-- 拡張メタは4つのパターンで全てをカバーする:
 --
--- 1. Kind tag — classifies a declaration (@tagAs@, @isTagged@)
--- 2. Attribute — simple key-value pair (@attr@, @lookupAttr@)
--- 3. Annotation — named sub-keyed entry (@annotate@, @annotations@)
--- 4. Reference — link to another declaration (@refer@, @references@)
+-- 1. 種別タグ — 宣言を分類する (@tagAs@, @isTagged@)
+-- 2. 属性 — 単純なキー・値ペア (@attr@, @lookupAttr@)
+-- 3. 注釈 — 名前付きサブキー (@annotate@, @annotations@)
+-- 4. 参照 — 他の宣言へのリンク (@refer@, @references@)
 module Plat.Core.Meta
-  ( -- * Extension identity
+  ( -- * 拡張識別子
     ExtId
   , extId
 
-    -- * Kind tags
+    -- * 種別タグ
   , MetaTag
   , kind
   , tagAs
   , isTagged
 
-    -- * Attributes (simple key-value)
+    -- * 属性（単純キー・値）
   , attr
   , lookupAttr
 
-    -- * Named annotations (sub-keyed)
+    -- * 注釈（名前付きサブキー）
   , annotate
   , annotations
 
-    -- * References to other declarations
+    -- * 他宣言への参照
   , refer
   , references
   ) where
@@ -40,60 +40,60 @@ import Plat.Core.Types
 import Plat.Core.Builder (DeclWriter, meta)
 
 ----------------------------------------------------------------------
--- Extension identity
+-- 拡張識別子
 ----------------------------------------------------------------------
 
--- | Extension identifier. Namespaces all meta keys under @plat-{id}:@.
+-- | 拡張識別子。全メタキーを @plat-{id}:@ で名前空間化する。
 newtype ExtId = ExtId Text
   deriving stock (Show, Eq)
 
--- | Create an extension identifier.
+-- | 拡張識別子を生成する。
 extId :: Text -> ExtId
 extId = ExtId
 
 ----------------------------------------------------------------------
--- Kind tags
+-- 種別タグ
 ----------------------------------------------------------------------
 
--- | A kind tag classifies a declaration within an extension's domain.
+-- | 拡張ドメイン内で宣言を分類する種別タグ。
 data MetaTag = MetaTag ExtId Text
   deriving stock (Show, Eq)
 
--- | Define a kind tag.
+-- | 種別タグを定義する。
 kind :: ExtId -> Text -> MetaTag
 kind = MetaTag
 
--- | Tag the current declaration with a kind.
+-- | 現在の宣言に種別タグを付与する。
 tagAs :: MetaTag -> DeclWriter k ()
 tagAs (MetaTag (ExtId ext) val) = meta ("plat-" <> ext <> ":kind") val
 
--- | Check if a declaration carries a specific kind tag.
+-- | 宣言が指定の種別タグを持つか検査する。
 isTagged :: MetaTag -> Declaration -> Bool
 isTagged (MetaTag (ExtId ext) val) d =
   lookupMeta ("plat-" <> ext <> ":kind") d == Just val
 
 ----------------------------------------------------------------------
--- Attributes
+-- 属性
 ----------------------------------------------------------------------
 
--- | Set a simple attribute on the current declaration.
+-- | 現在の宣言に属性を設定する。
 attr :: ExtId -> Text -> Text -> DeclWriter k ()
 attr (ExtId ext) key val = meta ("plat-" <> ext <> ":" <> key) val
 
--- | Look up a simple attribute.
+-- | 属性を検索する。
 lookupAttr :: ExtId -> Text -> Declaration -> Maybe Text
 lookupAttr (ExtId ext) key = lookupMeta ("plat-" <> ext <> ":" <> key)
 
 ----------------------------------------------------------------------
--- Named annotations
+-- 注釈
 ----------------------------------------------------------------------
 
--- | Add a named annotation under a category.
+-- | カテゴリ配下に名前付き注釈を追加する。
 annotate :: ExtId -> Text -> Text -> Text -> DeclWriter k ()
 annotate (ExtId ext) cat name val =
   meta ("plat-" <> ext <> ":" <> cat <> ":" <> name) val
 
--- | Query all annotations in a category. Returns @[(name, value)]@.
+-- | カテゴリ内の全注釈を取得する。@[(名前, 値)]@ を返す。
 annotations :: ExtId -> Text -> Declaration -> [(Text, Text)]
 annotations (ExtId ext) cat d =
   [ (T.drop (T.length pfx) k, v)
@@ -103,13 +103,13 @@ annotations (ExtId ext) cat d =
   where pfx = "plat-" <> ext <> ":" <> cat <> ":"
 
 ----------------------------------------------------------------------
--- References
+-- 参照
 ----------------------------------------------------------------------
 
--- | Record a reference to another declaration.
+-- | 他の宣言への参照を記録する。
 refer :: ExtId -> Text -> Decl j -> DeclWriter k ()
 refer ext cat (Decl d) = annotate ext cat (declName d) (declName d)
 
--- | Query all references in a category. Returns declaration names.
+-- | カテゴリ内の全参照を取得する。宣言名のリストを返す。
 references :: ExtId -> Text -> Declaration -> [Text]
 references ext cat d = map snd (annotations ext cat d)
