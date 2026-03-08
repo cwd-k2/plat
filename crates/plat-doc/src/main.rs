@@ -15,6 +15,10 @@ struct Cli {
     /// Mermaid graph direction
     #[arg(short, long, default_value = "lr")]
     direction: plat_doc::Direction,
+
+    /// Mermaid subgraph grouping
+    #[arg(short, long, default_value = "auto")]
+    group: plat_doc::GroupMode,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -45,7 +49,7 @@ fn main() {
 
     let output = match cli.format {
         DocFormat::Markdown => plat_doc::render_markdown(&manifest),
-        DocFormat::Mermaid => plat_doc::render_mermaid(&manifest, cli.direction),
+        DocFormat::Mermaid => plat_doc::render_mermaid(&manifest, cli.direction, cli.group),
         DocFormat::Dsm => plat_doc::render_dsm(&manifest),
     };
 

@@ -26,38 +26,79 @@ impl std::fmt::Display for Direction {
     }
 }
 
+/// Mermaid subgraph grouping strategy.
+#[derive(Clone, Copy, Default, clap::ValueEnum)]
+pub enum GroupMode {
+    /// Module if compose entries exist, otherwise layer
+    #[default]
+    Auto,
+    /// Group by compose entries (feature modules)
+    Module,
+    /// Group by architectural layer
+    Layer,
+    /// No grouping
+    None,
+}
+
 /// Render a Manifest as a Mermaid flowchart.
-pub fn render_mermaid(manifest: &Manifest, direction: Direction) -> String {
+pub fn render_mermaid(manifest: &Manifest, direction: Direction, group: GroupMode) -> String {
     let mut lines = vec![format!("graph {direction}")];
 
     let decl_names: HashSet<&str> =
         manifest.declarations.iter().map(|d| d.name.as_str()).collect();
 
-    // Compose groups (first-claim-wins)
+    // Compute groups: Vec<(label, members, is_compose_container)>
     let mut claimed: HashSet<&str> = HashSet::new();
-    let mut groups: Vec<(&str, Vec<&Declaration>)> = Vec::new();
+    let mut groups: Vec<(String, Vec<&Declaration>, bool)> = Vec::new();
 
-    for d in &manifest.declarations {
-        if d.kind != DeclKind::Compose || d.entries.is_empty() {
-            continue;
+    let effective = match group {
+        GroupMode::Auto => {
+            // Trial: compute module groups to check coverage
+            let non_compose_count = manifest.declarations.iter()
+                .filter(|d| d.kind != DeclKind::Compose)
+                .count();
+            let trial = module_groups(manifest);
+            let coverage: usize = trial.iter().map(|(_, m, _): &(String, Vec<&Declaration>, bool)| m.len()).sum();
+            if non_compose_count > 0 && coverage * 2 >= non_compose_count {
+                GroupMode::Module
+            } else {
+                GroupMode::Layer
+            }
         }
-        let members: Vec<&Declaration> = d
-            .entries
-            .iter()
-            .filter(|e| !claimed.contains(e.as_str()))
-            .filter_map(|e| manifest.declarations.iter().find(|decl| decl.name == **e))
-            .collect();
-        for m in &members {
-            claimed.insert(&m.name);
+        other => other,
+    };
+
+    match effective {
+        GroupMode::Module | GroupMode::Auto => {
+            groups = module_groups(manifest);
+            for (_, members, _) in &groups {
+                for m in members {
+                    claimed.insert(&m.name);
+                }
+            }
         }
-        if !members.is_empty() {
-            groups.push((&d.name, members));
+        GroupMode::Layer => {
+            let layer_order: Vec<&str> = manifest.layers.iter().map(|l| l.name.as_str()).collect();
+            for layer_name in &layer_order {
+                let members: Vec<&Declaration> = manifest
+                    .declarations
+                    .iter()
+                    .filter(|d| d.layer.as_deref() == Some(layer_name))
+                    .collect();
+                if !members.is_empty() {
+                    for m in &members {
+                        claimed.insert(&m.name);
+                    }
+                    groups.push((layer_name.to_string(), members, false));
+                }
+            }
         }
+        GroupMode::None => {}
     }
 
     // Subgraphs
-    for (name, members) in &groups {
-        lines.push(format!("  subgraph {}", sanitize(name)));
+    for (label, members, _) in &groups {
+        lines.push(format!("  subgraph {}", sanitize(label)));
         for d in members {
             lines.push(format!("    {}", node_shape(d)));
         }
@@ -69,7 +110,8 @@ pub fn render_mermaid(manifest: &Manifest, direction: Direction) -> String {
         if claimed.contains(d.name.as_str()) {
             continue;
         }
-        if d.kind == DeclKind::Compose && !d.entries.is_empty() {
+        // Compose that became a subgraph container: skip
+        if groups.iter().any(|(label, _, is_compose)| *is_compose && *label == d.name) {
             continue;
         }
         lines.push(format!("  {}", node_shape(d)));
@@ -122,6 +164,29 @@ pub fn render_mermaid(manifest: &Manifest, direction: Direction) -> String {
 
     lines.push(String::new());
     lines.join("\n")
+}
+
+fn module_groups(manifest: &Manifest) -> Vec<(String, Vec<&Declaration>, bool)> {
+    let mut claimed: HashSet<&str> = HashSet::new();
+    let mut groups = Vec::new();
+    for d in &manifest.declarations {
+        if d.kind != DeclKind::Compose || d.entries.is_empty() {
+            continue;
+        }
+        let members: Vec<&Declaration> = d
+            .entries
+            .iter()
+            .filter(|e| !claimed.contains(e.as_str()))
+            .filter_map(|e| manifest.declarations.iter().find(|decl| decl.name == **e))
+            .collect();
+        for m in &members {
+            claimed.insert(&m.name);
+        }
+        if !members.is_empty() {
+            groups.push((d.name.clone(), members, true));
+        }
+    }
+    groups
 }
 
 fn node_shape(d: &Declaration) -> String {
@@ -191,7 +256,7 @@ mod tests {
 
     #[test]
     fn mermaid_contains_all_nodes() {
-        let mmd = render_mermaid(&sample_manifest(), Direction::default());
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::default());
         assert!(mmd.contains("Order[Order]"));
         assert!(mmd.contains("OrderRepo([OrderRepo])"));
         assert!(mmd.contains("PlaceOrder[[PlaceOrder]]"));
@@ -200,7 +265,7 @@ mod tests {
 
     #[test]
     fn mermaid_contains_edges() {
-        let mmd = render_mermaid(&sample_manifest(), Direction::default());
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::default());
         assert!(mmd.contains("PlaceOrder -.->|needs| OrderRepo"));
         assert!(mmd.contains("PgOrderRepo -->|implements| OrderRepo"));
         assert!(mmd.contains("OrderRepo ===>|bind| PgOrderRepo"));
@@ -208,13 +273,13 @@ mod tests {
 
     #[test]
     fn mermaid_starts_with_graph_lr() {
-        let mmd = render_mermaid(&sample_manifest(), Direction::default());
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::default());
         assert!(mmd.starts_with("graph LR"));
     }
 
     #[test]
     fn mermaid_type_ref_edges() {
-        let mmd = render_mermaid(&sample_manifest(), Direction::default());
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::default());
         // OrderRepo.ops.Save has input type Order → edge to Order
         assert!(mmd.contains("OrderRepo -.-> Order"));
     }
@@ -240,7 +305,7 @@ mod tests {
 
     #[test]
     fn mermaid_subgraphs() {
-        let mmd = render_mermaid(&grouped_manifest(), Direction::default());
+        let mmd = render_mermaid(&grouped_manifest(), Direction::default(), GroupMode::Module);
         assert!(mmd.contains("subgraph SharedKernel"));
         assert!(mmd.contains("subgraph OrderFeature"));
         assert!(mmd.contains("end"));
@@ -259,9 +324,41 @@ mod tests {
             "bindings": []
         }"#;
         let m: Manifest = serde_json::from_str(json).unwrap();
-        let mmd = render_mermaid(&m, Direction::default());
+        let mmd = render_mermaid(&m, Direction::default(), GroupMode::Module);
         assert!(mmd.contains("subgraph G1"));
         // G2 has no unclaimed members → no subgraph
         assert!(!mmd.contains("subgraph G2"));
+    }
+
+    #[test]
+    fn mermaid_layer_grouping() {
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::Layer);
+        assert!(mmd.contains("subgraph domain"));
+        assert!(mmd.contains("subgraph app"));
+        assert!(mmd.contains("Order[Order]"));
+        assert!(mmd.contains("PlaceOrder[[PlaceOrder]]"));
+    }
+
+    #[test]
+    fn mermaid_auto_falls_back_to_layer() {
+        // sample_manifest has no compose → auto should pick layer
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::Auto);
+        assert!(mmd.contains("subgraph domain"));
+        assert!(mmd.contains("subgraph app"));
+    }
+
+    #[test]
+    fn mermaid_auto_picks_module() {
+        // grouped_manifest has compose entries → auto should pick module
+        let mmd = render_mermaid(&grouped_manifest(), Direction::default(), GroupMode::Auto);
+        assert!(mmd.contains("subgraph SharedKernel"));
+        assert!(mmd.contains("subgraph OrderFeature"));
+        assert!(!mmd.contains("subgraph domain"));
+    }
+
+    #[test]
+    fn mermaid_no_grouping() {
+        let mmd = render_mermaid(&sample_manifest(), Direction::default(), GroupMode::None);
+        assert!(!mmd.contains("subgraph"));
     }
 }
