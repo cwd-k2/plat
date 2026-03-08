@@ -1,45 +1,316 @@
-[tasks.build]
+# ─── Haskell ────────────────────────────────────
+
+[tasks."hs:build"]
 description = "Build the Haskell library"
 run = "cabal build"
 
-[tasks.test]
+[tasks."hs:test"]
 description = "Run Haskell test suite"
 run = "cabal test"
 
-[tasks.check]
-description = "Build and test"
-depends = ["build"]
-run = "cabal test"
+[tasks."hs:lint"]
+description = "Build Haskell with -Werror"
+run = "cabal build --ghc-options=-Werror"
+
+[tasks."hs:repl"]
+description = "Start GHCi with plat loaded"
+run = "cabal repl"
+
+[tasks."hs:doc"]
+description = "Generate Haddock documentation"
+run = "cabal haddock"
+
+[tasks."hs:clean"]
+description = "Clean Haskell build artifacts"
+run = "cabal clean"
+
+[tasks."hs:watch"]
+description = "Rebuild and test Haskell on file changes"
+run = "find src-hs test/hs -name '*.hs' | entr -c cabal test"
+
+# ─── Rust ───────────────────────────────────────
+
+[tasks."rs:build"]
+description = "Build all Rust crates"
+run = "cargo build"
+
+[tasks."rs:test"]
+description = "Run all Rust tests"
+run = "cargo test"
+
+[tasks."rs:lint"]
+description = "Lint Rust with clippy"
+run = "cargo clippy --workspace -- -D warnings"
+
+[tasks."rs:fmt"]
+description = "Format Rust code"
+run = "cargo fmt"
+
+[tasks."rs:fmt-check"]
+description = "Check Rust formatting"
+run = "cargo fmt --check"
+
+[tasks."rs:clean"]
+description = "Clean Rust build artifacts"
+run = "cargo clean"
+
+[tasks."rs:watch"]
+description = "Rebuild and test Rust on file changes"
+run = "find crates -name '*.rs' | entr -c cargo test"
+
+# ─── Combined ──────────────────────────────────
+
+[tasks.build]
+description = "Build everything (Haskell + Rust)"
+depends = ["hs:build", "rs:build"]
+
+[tasks.test]
+description = "Test everything (Haskell + Rust)"
+depends = ["hs:test", "rs:test"]
+
+[tasks.lint]
+description = "Lint everything (Haskell -Werror + Rust clippy + fmt check)"
+depends = ["hs:lint", "rs:lint", "rs:fmt-check"]
 
 [tasks.clean]
-description = "Clean build artifacts"
-run = "cabal clean"
+description = "Clean all build artifacts"
+depends = ["hs:clean", "rs:clean"]
+
+[tasks.fmt]
+description = "Format code (Rust)"
+depends = ["rs:fmt"]
+
+[tasks.ci]
+description = "Full CI pipeline: lint + test"
+depends = ["lint", "test"]
 
 [tasks.repl]
 description = "Start GHCi with plat loaded"
 run = "cabal repl"
 
-[tasks.lint]
-description = "Build with -Werror"
-run = "cabal build --ghc-options=-Werror"
+# ─── Examples ──────────────────────────────────
 
 [tasks.examples]
-description = "Run all examples"
+description = "Run all Haskell examples (generate manifests)"
+depends = ["hs:build"]
 run = """
-echo '--- Go Clean Architecture ---' && cabal run example-go-clean-arch 2>/dev/null
-echo '--- Go Feature-Sliced CA ---' && cabal run example-go-feature-sliced 2>/dev/null
-echo '--- TypeScript Hexagonal ---' && cabal run example-ts-hexagonal 2>/dev/null
-echo '--- Rust CQRS + Event Sourcing ---' && cabal run example-rust-cqrs-es 2>/dev/null
+echo '=== Go Clean Architecture ===' && cabal run example-go-clean-arch 2>/dev/null
+echo '=== Go Feature-Sliced CA ===' && cabal run example-go-feature-sliced 2>/dev/null
+echo '=== TypeScript Hexagonal ===' && cabal run example-ts-hexagonal 2>/dev/null
+echo '=== Rust CQRS + Event Sourcing ===' && cabal run example-rust-cqrs-es 2>/dev/null
 """
 
+[tasks."examples:verify"]
+description = "Run plat-verify on all verifiable examples"
+depends = ["rs:build"]
+run = """
+set -e
+echo '=== go-clean-arch: verify ==='
+cd examples/go-clean-arch && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- dist/manifest.json && cd ../..
+
+echo '=== go-feature-sliced: verify ==='
+cd examples/go-feature-sliced && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- dist/manifest.json && cd ../..
+
+echo '=== cross-language: verify ==='
+cd examples/cross-language && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- manifest.json && cd ../..
+
+echo '=== poc-roundtrip: verify ==='
+cd examples/poc-roundtrip && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- manifest.json && cd ../..
+"""
+
+[tasks."examples:doc"]
+description = "Generate docs (Markdown + Mermaid + DSM) for all example manifests"
+depends = ["rs:build"]
+run = """
+set -e
+PLAT_DOC="cargo run -q --manifest-path Cargo.toml --bin plat-doc --"
+EXAMPLES="go-clean-arch go-feature-sliced ts-hexagonal rust-cqrs-es"
+
+for ex in $EXAMPLES; do
+  manifest="examples/$ex/dist/manifest.json"
+  [ -f "$manifest" ] || continue
+  echo "=== $ex: doc ==="
+  $PLAT_DOC "$manifest" -f markdown > "examples/$ex/dist/doc.md"
+  $PLAT_DOC "$manifest" -f mermaid  > "examples/$ex/dist/diagram.mmd"
+  $PLAT_DOC "$manifest" -f dsm     > "examples/$ex/dist/dep-matrix.txt"
+done
+
+for ex in cross-language poc-roundtrip; do
+  manifest="examples/$ex/manifest.json"
+  [ -f "$manifest" ] || continue
+  echo "=== $ex: doc ==="
+  $PLAT_DOC "$manifest" -f markdown > "examples/$ex/doc.md"
+  $PLAT_DOC "$manifest" -f mermaid  > "examples/$ex/diagram.mmd"
+done
+"""
+
+[tasks."examples:full"]
+description = "Full showcase: manifest → check → verify → doc → skeleton → contract → deprules"
+depends = ["build"]
+run = """
+set -e
+SEP='────────────────────────────────────────────────'
+
+run_tool() { echo "  $1" && eval "$2"; }
+
+# ── Phase 1: Generate manifests from Haskell examples ──
+echo "$SEP"
+echo "Phase 1: Manifest generation (Haskell eDSL → JSON)"
+echo "$SEP"
+cabal run example-go-clean-arch    2>/dev/null
+cabal run example-go-feature-sliced 2>/dev/null
+cabal run example-ts-hexagonal     2>/dev/null
+cabal run example-rust-cqrs-es     2>/dev/null
+echo "  4 manifests generated"
+
+# ── Phase 2: plat-verify (architecture conformance) ──
+echo ""
+echo "$SEP"
+echo "Phase 2: Architecture conformance (plat-verify)"
+echo "$SEP"
+for ex in go-clean-arch go-feature-sliced poc-roundtrip; do
+  if [ -f "examples/$ex/plat-verify.toml" ]; then
+    manifest="examples/$ex/dist/manifest.json"
+    [ -f "$manifest" ] || manifest="examples/$ex/manifest.json"
+    echo "  [$ex]"
+    (cd "examples/$ex" && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- \
+      "$([ -f dist/manifest.json ] && echo dist/manifest.json || echo manifest.json)" 2>&1 | sed 's/^/    /')
+  fi
+done
+echo "  [cross-language] (multi-service)"
+(cd examples/cross-language && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- manifest.json 2>&1 | sed 's/^/    /')
+
+# ── Phase 3: plat-verify --suggest (drift patches) ──
+echo ""
+echo "$SEP"
+echo "Phase 3: Drift patch suggestions (plat-verify --suggest)"
+echo "$SEP"
+for ex in go-clean-arch go-feature-sliced; do
+  echo "  [$ex]"
+  (cd "examples/$ex" && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- \
+    dist/manifest.json --suggest 2>&1 | sed 's/^/    /')
+done
+
+# ── Phase 4: plat-verify --init (reverse engineering) ──
+echo ""
+echo "$SEP"
+echo "Phase 4: Reverse engineering (plat-verify --init)"
+echo "$SEP"
+echo "  [go-clean-arch]"
+(cd examples/go-clean-arch && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- \
+  --init --name order-service 2>&1 | head -30 | sed 's/^/    /')
+echo "    ..."
+
+# ── Phase 5: plat-verify --contracts (compatibility check) ──
+echo ""
+echo "$SEP"
+echo "Phase 5: Contract compatibility (plat-verify --contracts)"
+echo "$SEP"
+if [ -f examples/cross-language/manifest.json ]; then
+  echo "  [cross-language: go-api ↔ ts-web]"
+  # split_by_service creates per-service manifests; use the combined manifest
+  (cd examples/cross-language && cargo run -q --manifest-path ../../Cargo.toml --bin plat-verify -- \
+    manifest.json --contracts manifest.json 2>&1 | sed 's/^/    /' || true)
+fi
+
+# ── Phase 6: plat-doc (documentation generation) ──
+echo ""
+echo "$SEP"
+echo "Phase 6: Documentation (plat-doc: markdown + mermaid + dsm)"
+echo "$SEP"
+PLAT_DOC="cargo run -q --manifest-path Cargo.toml --bin plat-doc --"
+for ex in go-clean-arch go-feature-sliced ts-hexagonal rust-cqrs-es; do
+  manifest="examples/$ex/dist/manifest.json"
+  [ -f "$manifest" ] || continue
+  echo "  [$ex]"
+  $PLAT_DOC "$manifest" -f markdown > "examples/$ex/dist/doc.md"
+  $PLAT_DOC "$manifest" -f mermaid  > "examples/$ex/dist/diagram.mmd"
+  $PLAT_DOC "$manifest" -f dsm     > "examples/$ex/dist/dep-matrix.txt" 2>/dev/null || true
+  echo "    → doc.md, diagram.mmd, dep-matrix.txt"
+done
+
+# ── Phase 7: plat-skeleton (code scaffold generation) ──
+echo ""
+echo "$SEP"
+echo "Phase 7: Code scaffolds (plat-skeleton)"
+echo "$SEP"
+PLAT_SKEL="cargo run -q --manifest-path Cargo.toml --bin plat-skeleton --"
+skel_example() {
+  local ex=$1 lang=$2 mod=$3
+  local manifest="examples/$ex/dist/manifest.json"
+  local outdir="examples/$ex/dist/skeleton"
+  [ -f "$manifest" ] || return
+  echo "  [$ex → $lang]"
+  rm -rf "$outdir" && mkdir -p "$outdir"
+  local layer_args=""
+  case $ex in
+    go-clean-arch|go-feature-sliced)
+      layer_args="--layer-dir enterprise=domain --layer-dir interface=port --layer-dir application=usecase --layer-dir framework=adapter" ;;
+  esac
+  local mod_arg=""
+  [ -n "$mod" ] && mod_arg="--module $mod"
+  $PLAT_SKEL "$manifest" -l "$lang" -o "$outdir" $layer_args $mod_arg 2>&1 | sed 's/^/    /'
+  echo "    → $(find "$outdir" -type f | wc -l | tr -d ' ') files generated"
+}
+skel_example go-clean-arch go github.com/example/order-service
+skel_example go-feature-sliced go github.com/example/ecommerce
+skel_example ts-hexagonal typescript ""
+skel_example rust-cqrs-es rust ""
+
+# ── Phase 8: plat-contract (test skeleton generation) ──
+echo ""
+echo "$SEP"
+echo "Phase 8: Contract test skeletons (plat-contract)"
+echo "$SEP"
+PLAT_CT="cargo run -q --manifest-path Cargo.toml --bin plat-contract --"
+ct_example() {
+  local ex=$1 lang=$2 mod=$3
+  local manifest="examples/$ex/dist/manifest.json"
+  local outdir="examples/$ex/dist/contracts"
+  [ -f "$manifest" ] || return
+  echo "  [$ex → $lang]"
+  rm -rf "$outdir" && mkdir -p "$outdir"
+  local layer_args=""
+  case $ex in
+    go-clean-arch|go-feature-sliced)
+      layer_args="--layer-dir enterprise=domain --layer-dir interface=port --layer-dir application=usecase --layer-dir framework=adapter" ;;
+  esac
+  $PLAT_CT "$manifest" -l "$lang" -o "$outdir" $layer_args 2>&1 | sed 's/^/    /'
+  echo "    → $(find "$outdir" -type f | wc -l | tr -d ' ') files generated"
+}
+ct_example go-clean-arch go ""
+ct_example go-feature-sliced go ""
+ct_example ts-hexagonal typescript ""
+ct_example rust-cqrs-es rust ""
+
+# ── Phase 9: plat-deprules (linter dependency rules) ──
+echo ""
+echo "$SEP"
+echo "Phase 9: Dependency rules (plat-deprules)"
+echo "$SEP"
+PLAT_DEP="cargo run -q --manifest-path Cargo.toml --bin plat-deprules --"
+for ex in go-clean-arch go-feature-sliced ts-hexagonal rust-cqrs-es; do
+  manifest="examples/$ex/dist/manifest.json"
+  [ -f "$manifest" ] || continue
+  echo "  [$ex: matrix]"
+  $PLAT_DEP "$manifest" -f matrix 2>&1 | sed 's/^/    /'
+done
+
+echo ""
+echo "$SEP"
+echo "Done. All tools exercised across all examples."
+echo "$SEP"
+"""
+
+# ─── Golden ─────────────────────────────────────
+
+[tasks.golden]
+description = "Regenerate golden test manifest"
+depends = ["hs:build"]
+run = "cabal test"
+
+# ─── Watch ──────────────────────────────────────
+
 [tasks.watch]
-description = "Rebuild on file changes"
-run = "find src-hs test/hs -name '*.hs' | entr -c cabal test"
-
-[tasks."verify:build"]
-description = "Build plat-verify (Rust)"
-run = "cargo build"
-
-[tasks."verify:test"]
-description = "Test plat-verify (Rust)"
-run = "cargo test"
+description = "Watch all sources and rebuild on changes"
+run = "find src-hs test/hs crates -name '*.hs' -o -name '*.rs' | entr -c mise run test"
